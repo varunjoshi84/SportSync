@@ -1,0 +1,71 @@
+/* css/style.css */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.bg-gray-900 {
+    background-color: #1a202c;
+}
+
+.bg-gray-800 {
+    background-color: #2d3748;
+}
+
+.border-gray-800 {
+    border-color: #2d3748;
+}
+
+.text-gray-400 {
+    color: #a0aec0;
+}
+
+.hover:bg-red-600 {
+    transition: background-color 0.3s;
+}
+
+/* Dropdown specific styles */
+#user-menu {
+    z-index: 50; /* Ensure dropdown is above other content */
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s; /* Fade out with delay */
+    opacity: 1;
+}
+
+#user-menu.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0s linear 0s; /* Immediate hide after fade */
+}
+
+.group:hover #user-menu {
+    display: block !important; /* Force show on hover */
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#user-menu a {
+    transition: background-color 0.3s ease;
+}
+
+#user-menu a:hover {
+    background-color: #4a5568; /* Darker shade on hover */
+}
+
+/* Ensure navbar items align properly */
+nav .flex.space-x-3 button {
+    margin-left: 0.5rem; /* Adjust spacing between buttons */
+}
+
+/* Responsive fixes */
+@media (max-width: 640px) {
+    nav .flex.space-x-6 {
+        display: none; /* Hide nav links on mobile */
+    }
+    nav .flex.space-x-3 {
+        flex-direction: column;
+        align-items: center;
+    }
+    nav .flex.space-x-3 button {
+        margin: 0.5rem 0;
+        width: 100%;
+    }
+}
