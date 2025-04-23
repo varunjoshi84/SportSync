@@ -60,27 +60,33 @@ sportsync/
 
 We've recently made several improvements to the project:
 
-1. **Consolidated Feedback System**:
+1. **User Account Management**:
+   - Fixed password update functionality to properly hash and store updated passwords
+   - Added password strength requirements (more than 6 characters)
+   - Implemented secure account deletion with password verification
+   - Added two-step confirmation process for account deletion
+
+2. **Consolidated Feedback System**:
    - Merged duplicate feedback files into a single `feedback.php`
    - Improved error handling and logging
    - Added better input validation and sanitization
 
-2. **Consolidated Newsletter System**:
+3. **Consolidated Newsletter System**:
    - Merged duplicate subscription files into a single `newsletter.php`
    - Enhanced error handling and logging
    - Improved email validation and duplicate checking
 
-3. **Database Structure Improvements**:
+4. **Database Structure Improvements**:
    - Consolidated database initialization into a single `init_db.php` file
    - Added missing tables (subscriptions, news)
    - Improved table structure and relationships
 
-4. **Directory Structure Cleanup**:
+5. **Directory Structure Cleanup**:
    - Removed empty template files
    - Organized test files into a dedicated directory
    - Improved overall project organization
 
-5. **Email Functionality**:
+6. **Email Functionality**:
    - Implemented PHPMailer for sending emails
    - Added thank-you emails for feedback submissions
    - Added welcome emails for newsletter subscriptions
@@ -200,4 +206,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contact
 
 Varun Joshi - varunjoshi84@gmail.com
-Project Link: https://github.com/varunjoshi84/SportSync 
+Project Link: https://github.com/varunjoshi84/SportSync
