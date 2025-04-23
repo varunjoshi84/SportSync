@@ -23,24 +23,54 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user = getUserById($_SESSION['user_id']);
 
-// Handle profile update (basic implementation)
+// Handle profile update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
-    $favorite_sport = $_POST['favorite_sport'];
-    $favorite_team = $_POST['favorite_team'];
-    // Add update logic here (e.g., update database)
-    $message = "Profile updated successfully!";
+    $favorite_sport = $_POST['favorite_sport'] ?? '';
+    $favorite_team = $_POST['favorite_team'] ?? '';
+    
+    // Update user preferences in the database
+    $success = updateUserPreferences($_SESSION['user_id'], $favorite_sport, $favorite_team);
+    
+    if ($success) {
+        $message = "Profile updated successfully!";
+        // Refresh user data to show updated values
+        $user = getUserById($_SESSION['user_id']);
+    } else {
+        $error = "Failed to update profile. Please try again.";
+    }
 }
 
-// Handle password change (basic implementation)
+// Handle password change (updated implementation)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['change_password'])) {
     $current_password = $_POST['current_password'];
     $new_password = $_POST['new_password'];
     $confirm_password = $_POST['confirm_new_password'];
-    // Add password change logic here (e.g., verify current password and update)
-    if ($new_password === $confirm_password) {
-        $message = "Password changed successfully!";
-    } else {
+
+    // Validate new password length
+    if (strlen($new_password) <= 6) {
+        $error = "New password must be more than 6 characters.";
+    } elseif ($new_password !== $confirm_password) {
         $error = "Passwords do not match!";
+    } else {
+        // Fetch the current password hash from the database
+        $user_id = $_SESSION['user_id'];
+        $user_data = getUserById($user_id);
+
+        if (password_verify($current_password, $user_data['password'])) {
+            // Hash the new password
+            $new_password_hash = password_hash($new_password, PASSWORD_DEFAULT);
+
+            // Update the password in the database
+            $update_success = updateUserPassword($user_id, $new_password_hash);
+
+            if ($update_success) {
+                $message = "Password changed successfully!";
+            } else {
+                $error = "Failed to update password. Please try again.";
+            }
+        } else {
+            $error = "Current password is incorrect.";
+        }
     }
 }
 ?>

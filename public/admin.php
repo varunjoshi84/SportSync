@@ -1,12 +1,3 @@
-/**
- * Admin Dashboard
- * 
- * This file manages the admin dashboard interface and operations.
- * Provides functionality for managing matches, news articles, and user feedback.
- * Only accessible to users with admin privileges.
- * 
- */
-
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     // Initialize session if not already started

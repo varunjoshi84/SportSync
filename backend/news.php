@@ -1,4 +1,4 @@
-// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/news.php
+
 <?php
 /**
  * News Management Functions

@@ -77,6 +77,13 @@ switch($page) {
         }
         require __DIR__ . '/dashboard.php';
         break;
+    case 'delete-account':
+        if (!$user) {
+            header("Location: ?page=login");
+            exit;
+        }
+        require __DIR__ . '/delete-account.php';
+        break;
     case 'favorite-matches':
         if (!$user) {
             header("Location: ?page=login");

@@ -1,4 +1,3 @@
-// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/match.php
 <?php
 /**
  * Match Management Module
@@ -14,9 +13,6 @@
  * - Score and statistics updates
  * - User favorites functionality
  * - API request handling for match data
- * 
- * @author SportSync Development Team
- * @version 1.0
  */
 
 ob_start();
@@ -356,13 +352,29 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     }
 
     if (!function_exists('getFavoriteMatches')) {
-        function getFavoriteMatches($user_id) {
+        function getFavoriteMatches($user_id, $sport = null, $status = null) {
             $sql = "SELECT m.* FROM matches m 
                     INNER JOIN favorites f ON m.id = f.match_id 
-                    WHERE f.user_id = :user_id 
-                    ORDER BY m.match_time DESC";
+                    WHERE f.user_id = :user_id";
+            
+            $params = [':user_id' => $user_id];
+            
+            // Add sport filter if provided
+            if ($sport !== null) {
+                $sql .= " AND m.sport = :sport";
+                $params[':sport'] = $sport;
+            }
+            
+            // Add status filter if provided
+            if ($status !== null) {
+                $sql .= " AND m.status = :status";
+                $params[':status'] = $status;
+            }
+            
+            $sql .= " ORDER BY m.match_time DESC";
+            
             try {
-                return executeQuery($sql, [':user_id' => $user_id]);
+                return executeQuery($sql, $params);
             } catch (Exception $e) {
                 error_log("Error getting favorite matches: " . $e->getMessage());
                 return [];
@@ -429,8 +441,65 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     // Handle form submissions
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
-            // Only handle specific form submissions, not login/signup
-            if (isset($_POST['add_match']) || isset($_POST['update_match']) || isset($_POST['delete_match']) || 
+            // Handle toggle_favorite separately since it's more commonly used
+            if (isset($_POST['toggle_favorite'])) {
+                header('Content-Type: application/json');
+                if (ob_get_length()) ob_clean();
+                
+                // Log the request for debugging
+                error_log('toggle_favorite POST: ' . print_r($_POST, true));
+                
+                // Get parameters
+                $user_id = $_POST['user_id'] ?? null;
+                $match_id = $_POST['match_id'] ?? null;
+                $is_favorite = isset($_POST['is_favorite']) && $_POST['is_favorite'] === 'true';
+
+                // Validate required parameters
+                if (!$user_id || !$match_id) {
+                    $response = ['success' => false, 'error' => 'Missing user_id or match_id'];
+                    echo json_encode($response);
+                    exit;
+                }
+
+                try {
+                    if ($is_favorite) {
+                        $result = removeFromFavorites($user_id, $match_id);
+                        error_log("Removing from favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
+                    } else {
+                        $result = addToFavorites($user_id, $match_id);
+                        error_log("Adding to favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
+                    }
+                    
+                    // Always send a definitive response
+                    $response = [
+                        'success' => ($result !== false), 
+                        'is_favorite' => !$is_favorite,
+                        'action' => $is_favorite ? 'removed' : 'added'
+                    ];
+                    
+                    // Make sure we have output, even if result is false
+                    if ($result === false) {
+                        $response['error'] = 'Database operation failed';
+                    }
+                } catch (Exception $e) {
+                    error_log("Error in toggle_favorite: " . $e->getMessage());
+                    $response = ['success' => false, 'error' => $e->getMessage()];
+                }
+                
+                // Add additional error handling to guarantee output
+                if (empty($response)) {
+                    $response = ['success' => false, 'error' => 'Unknown server error occurred'];
+                }
+                
+                // Ensure we're sending valid JSON with proper headers
+                if (!headers_sent()) {
+                    header('Content-Type: application/json');
+                }
+                echo json_encode($response);
+                exit;
+            }
+            // Handle other form submissions
+            else if (isset($_POST['add_match']) || isset($_POST['update_match']) || isset($_POST['delete_match']) || 
                 isset($_POST['add_to_favorites']) || isset($_POST['remove_from_favorites'])) {
                 
                 header('Content-Type: application/json');
@@ -521,74 +590,14 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                         error_log("Error deleting match: " . $e->getMessage());
                         $response = ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
                     }
-                    
-                    // Return the response
-                    echo json_encode($response);
-                    exit;
-                }
-                elseif (isset($_POST['toggle_favorite'])) {
-                    header('Content-Type: application/json');
-                    if (ob_get_length()) ob_clean();
-                    
-                    // Log the request for debugging
-                    error_log('toggle_favorite POST: ' . print_r($_POST, true));
-                    
-                    // Get parameters
-                    $user_id = $_POST['user_id'] ?? null;
-                    $match_id = $_POST['match_id'] ?? null;
-                    $is_favorite = isset($_POST['is_favorite']) && $_POST['is_favorite'] === 'true';
-
-                    // Validate required parameters
-                    if (!$user_id || !$match_id) {
-                        $response = ['success' => false, 'error' => 'Missing user_id or match_id'];
-                        echo json_encode($response);
-                        exit;
-                    }
-
-                    try {
-                        if ($is_favorite) {
-                            $result = removeFromFavorites($user_id, $match_id);
-                            error_log("Removing from favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
-                        } else {
-                            $result = addToFavorites($user_id, $match_id);
-                            error_log("Adding to favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
-                        }
-                        
-                        // Always send a definitive response
-                        $response = [
-                            'success' => ($result !== false), 
-                            'is_favorite' => !$is_favorite,
-                            'action' => $is_favorite ? 'removed' : 'added'
-                        ];
-                        
-                        // Make sure we have output, even if result is false
-                        if ($result === false) {
-                            $response['error'] = 'Database operation failed';
-                        }
-                    } catch (Exception $e) {
-                        error_log("Error in toggle_favorite: " . $e->getMessage());
-                        $response = ['success' => false, 'error' => $e->getMessage()];
-                    }
-                    
-                    // Add additional error handling to guarantee output
-                    if (empty($response)) {
-                        $response = ['success' => false, 'error' => 'Unknown server error occurred'];
-                    }
-                    
-                    // Ensure we're sending valid JSON with proper headers
-                    if (!headers_sent()) {
-                        header('Content-Type: application/json');
-                    }
-                    echo json_encode($response);
-                    exit;
                 }
 
-                // Always return a JSON response if no handler matched
+                // Return the response
                 if (!headers_sent()) {
                     header('Content-Type: application/json');
                 }
                 if (ob_get_length()) ob_clean();
-                echo json_encode(['success' => false, 'error' => 'Invalid request or missing parameters.']);
+                echo json_encode($response);
                 exit;
             }
         } catch (Exception $e) {
