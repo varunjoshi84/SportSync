@@ -1,18 +1,61 @@
+// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/news.php
 <?php
+/**
+ * News Management Functions
+ * 
+ * This file contains functions for managing news articles including:
+ * - Newsletter subscription
+ * - Retrieving news articles
+ * - Adding, updating, and deleting news content
+ */
+
 require_once __DIR__ . '/db.php';
 
+/**
+ * Subscribes an email address to the newsletter
+ * 
+ * @param string $email User's email address to subscribe
+ * @return boolean True if subscription successful, false otherwise
+ */
 function subscribeNewsletter($email) {
-    $db = getDB();
-    $sql = "SELECT email FROM newsletter WHERE email = :email";
-    $existing = executeQuery($sql, [':email' => $email]);
-    if (count($existing) > 0) {
+    try {
+        $db = getDB();
+        
+        // Check if email already exists
+        $stmt = $db->prepare("SELECT email FROM subscriptions WHERE email = ?");
+        $stmt->execute([$email]);
+        
+        if ($stmt->rowCount() > 0) {
+            error_log("Subscription failed: Email already exists - " . $email);
+            return false;
+        }
+        
+        // Insert new subscription
+        $stmt = $db->prepare("INSERT INTO subscriptions (email) VALUES (?)");
+        $result = $stmt->execute([$email]);
+        
+        if ($result) {
+            error_log("Successfully subscribed email: " . $email);
+            return true;
+        } else {
+            error_log("Failed to insert subscription for email: " . $email);
+            return false;
+        }
+    } catch (PDOException $e) {
+        error_log("Database error in subscribeNewsletter: " . $e->getMessage());
+        return false;
+    } catch (Exception $e) {
+        error_log("General error in subscribeNewsletter: " . $e->getMessage());
         return false;
     }
-    $sql = "INSERT INTO newsletter (email) VALUES (:email)";
-    executeQuery($sql, [':email' => $email]);
-    return true;
 }
 
+/**
+ * Gets the latest news articles, optionally filtered by sport category
+ * 
+ * @param string|null $sport Optional sport category to filter by
+ * @return array List of news articles
+ */
 function getLatestNews($sport = null) {
     $db = getDB();
     
@@ -31,6 +74,14 @@ function getLatestNews($sport = null) {
     }
 }
 
+/**
+ * Adds a new news article
+ * 
+ * @param string $title News article title
+ * @param string $content News article content
+ * @param string $category Sport category
+ * @return boolean True if addition successful, false otherwise
+ */
 function addNews($title, $content, $category) {
     $db = getDB();
     $sql = "INSERT INTO news (title, content, category) VALUES (:title, :content, :category)";
@@ -48,6 +99,15 @@ function addNews($title, $content, $category) {
     }
 }
 
+/**
+ * Updates an existing news article
+ * 
+ * @param int $id News article ID
+ * @param string $title Updated title
+ * @param string $content Updated content
+ * @param string $category Updated category
+ * @return boolean True if update successful, false otherwise
+ */
 function updateNews($id, $title, $content, $category) {
     $db = getDB();
     $sql = "UPDATE news SET title = :title, content = :content, category = :category WHERE id = :id";
@@ -65,6 +125,12 @@ function updateNews($id, $title, $content, $category) {
     }
 }
 
+/**
+ * Deletes a news article
+ * 
+ * @param int $id ID of the news article to delete
+ * @return boolean True if deletion successful, false otherwise
+ */
 function deleteNews($id) {
     $db = getDB();
     $sql = "DELETE FROM news WHERE id = :id";
@@ -77,6 +143,11 @@ function deleteNews($id) {
     }
 }
 
+/**
+ * Gets all news articles in chronological order
+ * 
+ * @return array List of all news articles
+ */
 function getAllNews() {
     $db = getDB();
     $sql = "SELECT * FROM news ORDER BY created_at DESC";

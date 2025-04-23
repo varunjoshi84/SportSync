@@ -1,9 +1,9 @@
 <?php include __DIR__ . '/header.php';
 require_once __DIR__ . '/../backend/news.php';
 
-// Get initial news
-$currentSport = isset($_GET['sport']) ? $_GET['sport'] : null;
-$news = getLatestNews($currentSport);
+// Get initial news and set default sport filter
+$currentSport = isset($_GET['sport']) ? $_GET['sport'] : 'all';
+$news = getLatestNews($currentSport !== 'all' ? $currentSport : null);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,21 +46,23 @@ $news = getLatestNews($currentSport);
                 <div class="flex justify-between items-center mb-8">
                     <h2 class="text-2xl font-bold text-white">Latest Sports News</h2>
                     <div class="flex space-x-2">
-                        <button onclick="filterNews('football')" class="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-red-500 transition" id="football-btn">Football</button>
-                        <button onclick="filterNews('cricket')" class="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-red-500 transition" id="cricket-btn">Cricket</button>
+                        <button onclick="filterNews('all')" class="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-red-500 transition <?php echo $currentSport === 'all' || $currentSport === null ? 'bg-red-500' : ''; ?>" id="all-btn">All</button>
+                        <button onclick="filterNews('football')" class="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-red-500 transition <?php echo $currentSport === 'football' ? 'bg-red-500' : ''; ?>" id="football-btn">Football</button>
+                        <button onclick="filterNews('cricket')" class="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-red-500 transition <?php echo $currentSport === 'cricket' ? 'bg-red-500' : ''; ?>" id="cricket-btn">Cricket</button>
                     </div>
                 </div>
 
                 <div id="news-carousel" class="min-h-[200px]">
                     <?php if (!empty($news)): ?>
                         <?php foreach ($news as $index => $item): ?>
-                            <div class="carousel-item <?php echo $index === 0 ? 'active' : ''; ?> text-white">
+                            <div class="carousel-item <?php echo $index === 0 ? 'active' : ''; ?> text-white" data-sport="<?php echo htmlspecialchars($item['category']); ?>">
                                 <div class="flex gap-6">
                                     <div class="flex-1">
                                         <h3 class="text-xl font-semibold mb-2"><?php echo htmlspecialchars($item['title']); ?></h3>
                                         <p class="text-gray-400"><?php echo htmlspecialchars(substr($item['content'], 0, 200)) . '...'; ?></p>
                                         <p class="text-sm text-gray-500 mt-2">
                                             <?php echo date('F j, Y', strtotime($item['created_at'])); ?>
+                                            <span class="ml-2 px-2 py-0.5 bg-gray-800 text-xs rounded"><?php echo ucfirst(htmlspecialchars($item['category'])); ?></span>
                                         </p>
                                     </div>
                                 </div>
@@ -103,17 +105,13 @@ $news = getLatestNews($currentSport);
                                     </span>
                                 </div>
                                 <div class="flex justify-between mb-2">
-                                    <div class="flex items-center space-x-2">
-                                        <img src="https://flagcdn.com/w40/<?php echo strtolower($match['team1_country'] ?? 'us'); ?>.svg" 
-                                             alt="<?php echo htmlspecialchars($match['team1']); ?> flag" class="w-5 h-5">
+                                    <div class="flex items-center">
                                         <span><?php echo htmlspecialchars($match['team1']); ?></span>
                                     </div>
                                     <span class="font-bold"><?php echo $match['team1_score'] ?? '0'; ?></span>
                                 </div>
                                 <div class="flex justify-between mb-2">
-                                    <div class="flex items-center space-x-2">
-                                        <img src="https://flagcdn.com/w40/<?php echo strtolower($match['team2_country'] ?? 'us'); ?>.svg" 
-                                             alt="<?php echo htmlspecialchars($match['team2']); ?> flag" class="w-5 h-5">
+                                    <div class="flex items-center">
                                         <span><?php echo htmlspecialchars($match['team2']); ?></span>
                                     </div>
                                     <span><?php echo $match['team2_score'] ?? '0'; ?></span>
@@ -173,7 +171,7 @@ $news = getLatestNews($currentSport);
         }
 
         async function filterNews(sport) {
-            const buttons = ['football-btn', 'cricket-btn'];
+            const buttons = ['all-btn', 'football-btn', 'cricket-btn'];
             buttons.forEach(btn => {
                 document.getElementById(btn).classList.remove('bg-red-500');
                 if (btn === `${sport}-btn`) {
@@ -182,26 +180,36 @@ $news = getLatestNews($currentSport);
             });
 
             try {
-                const response = await fetch(`/api/news.php?sport=${sport}`);
+                // Update URL with the sport parameter without reloading the page
+                const url = new URL(window.location.href);
+                if (sport === 'all') {
+                    url.searchParams.delete('sport');
+                } else {
+                    url.searchParams.set('sport', sport);
+                }
+                history.pushState({}, '', url);
+
+                const response = await fetch(`/sportsync/public/api/news.php?sport=${sport === 'all' ? '' : sport}`);
                 const data = await response.json();
                 
                 const carousel = document.getElementById('news-carousel');
                 if (data.length === 0) {
                     carousel.innerHTML = `
                         <div class="flex flex-col items-center justify-center py-16 text-center">
-                            <p class="text-xl text-gray-500 mb-2">No ${sport} news available at the moment</p>
+                            <p class="text-xl text-gray-500 mb-2">No ${sport !== 'all' ? sport : 'sports'} news available at the moment</p>
                             <p class="text-gray-600">Please check back later</p>
                         </div>
                     `;
                 } else {
                     carousel.innerHTML = data.map((item, index) => `
-                        <div class="carousel-item ${index === 0 ? 'active' : ''} text-white">
+                        <div class="carousel-item ${index === 0 ? 'active' : ''} text-white" data-sport="${item.category}">
                             <div class="flex gap-6">
                                 <div class="flex-1">
                                     <h3 class="text-xl font-semibold mb-2">${item.title}</h3>
                                     <p class="text-gray-400">${item.content.substring(0, 200)}...</p>
                                     <p class="text-sm text-gray-500 mt-2">
-                                        ${item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}
+                                        ${new Date(item.created_at).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'})}
+                                        <span class="ml-2 px-2 py-0.5 bg-gray-800 text-xs rounded">${item.category.charAt(0).toUpperCase() + item.category.slice(1)}</span>
                                     </p>
                                 </div>
                             </div>
@@ -223,23 +231,39 @@ $news = getLatestNews($currentSport);
             formData.append('toggle_favorite', '1');
             formData.append('user_id', '<?php echo $_SESSION['user_id'] ?? ''; ?>');
             formData.append('match_id', matchId);
-            formData.append('is_favorite', isFavorite);
+            formData.append('is_favorite', isFavorite ? 'true' : 'false');
 
             fetch('../backend/match.php', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text().then(text => {
+                    if (!text) {
+                        return { success: false, error: 'Empty response from server' };
+                    }
+                    
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Invalid JSON response:', text);
+                        throw new Error('Invalid JSON response from server');
+                    }
+                });
+            })
             .then(data => {
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    alert('Failed to update favorite status');
+                    alert('Failed to update favorite status: ' + (data.error || 'Unknown error'));
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while updating favorite status');
+                alert('An error occurred while updating favorite status: ' + error.message);
             });
         }
 
@@ -247,4 +271,4 @@ $news = getLatestNews($currentSport);
         startCarousel();
     </script>
 </body>
-</html> 
+</html>

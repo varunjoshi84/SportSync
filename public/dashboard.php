@@ -1,11 +1,23 @@
+/**
+ * User Dashboard
+ * 
+ * This file handles the user dashboard interface and functionality.
+ * Provides features for updating user profiles and changing passwords.
+ * Only accessible to logged-in users.
+ */
+
 <?php
+// Start session for user authentication
 session_start();
+
+// Include required backend files
 include_once __DIR__ . '/../backend/db.php';
 include_once __DIR__ . '/../backend/auth.php';
 include_once __DIR__ . '/../backend/user.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
+    // Redirect to login page if not logged in
     header("Location: ?page=login");
     exit();
 }
@@ -47,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['change_password'])) {
     <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body class="bg-black text-white">
-    <div class="max-w-4xl mx-auto mt-20 p-6">
+    <div class="max-w-4xl mx-auto  p-6">
         <div class="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-800">
             <h2 class="text-2xl font-semibold text-white mb-4">Welcome, <?php echo htmlspecialchars($user['username']); ?>!</h2>
             <p class="text-gray-400 mb-6">Here's what's happening in your sports world.</p>
@@ -71,52 +83,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['change_password'])) {
                     </div>
                     <div class="flex justify-between mt-4">
                         <a href="?page=favorites" class="text-gray-400 hover:text-red-500"><i data-feather="heart"></i> Favorites</a>
-                        <a href="?page=notifications" class="text-gray-400 hover:text-red-500"><i data-feather="bell"></i> Notifications</a>
+                        <!-- <a href="?page=notifications" class="text-gray-400 hover:text-red-500"><i data-feather="bell"></i> Notifications</a> -->
                         <a href="?page=delete-account" class="text-red-500 hover:text-red-600"><i data-feather="trash-2"></i> Delete Account</a>
                     </div>
                 </div>
                 <div class="w-2/3 space-y-6">
                     <div class="bg-gray-800 rounded-lg p-4">
-                        <h3 class="text-lg font-semibold mb-4">Update Profile</h3>
+                        <h3 class="text-lg text-white font-semibold mb-4">Update Profile</h3>
                         <?php if (isset($message)) echo "<p class='text-green-500 mb-2'>$message</p>"; ?>
                         <?php if (isset($error)) echo "<p class='text-red-500 mb-2'>$error</p>"; ?>
                         <form method="POST" class="space-y-4">
                             <div>
                                 <label class="block text-gray-400">Username</label>
-                                <input type="text" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" readonly>
+                                <input type="text" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" readonly>
                             </div>
                             <div>
                                 <label class="block text-gray-400">Email</label>
-                                <input type="email" name="email" value="<?php echo htmlspecialchars($user['email']); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" readonly>
+                                <input type="email" name="email" value="<?php echo htmlspecialchars($user['email']); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" readonly>
                             </div>
                             <div class="flex space-x-4">
                                 <div class="w-1/2">
                                     <label class="block text-gray-400">Favorite Sport</label>
-                                    <input type="text" name="favorite_sport" value="<?php echo htmlspecialchars($user['favorite_sport'] ?? ''); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded">
+                                    <input type="text" name="favorite_sport" value="<?php echo htmlspecialchars($user['favorite_sport'] ?? ''); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
                                 </div>
                                 <div class="w-1/2">
                                     <label class="block text-gray-400">Favorite Team</label>
-                                    <input type="text" name="favorite_team" value="<?php echo htmlspecialchars($user['favorite_team'] ?? ''); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded">
+                                    <input type="text" name="favorite_team" value="<?php echo htmlspecialchars($user['favorite_team'] ?? ''); ?>" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
                                 </div>
                             </div>
                             <button type="submit" name="update_profile" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Update Profile</button>
                         </form>
                     </div>
                     <div class="bg-gray-800 rounded-lg p-4">
-                        <h3 class="text-lg font-semibold mb-4">Change Password</h3>
+                        <h3 class="text-lg font-semibold mb-4 text-white">Change Password</h3>
                         <form method="POST" class="space-y-4">
                             <div>
                                 <label class="block text-gray-400">Current Password</label>
-                                <input type="password" name="current_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                <input type="password" name="current_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" required>
                             </div>
                             <div class="flex space-x-4">
                                 <div class="w-1/2">
                                     <label class="block text-gray-400">New Password</label>
-                                    <input type="password" name="new_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                    <input type="password" name="new_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" required>
                                 </div>
                                 <div class="w-1/2">
                                     <label class="block text-gray-400">Confirm New Password</label>
-                                    <input type="password" name="confirm_new_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                    <input type="password" name="confirm_new_password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" required>
                                 </div>
                             </div>
                             <button type="submit" name="change_password" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Change Password</button>

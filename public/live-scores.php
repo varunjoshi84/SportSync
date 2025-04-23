@@ -47,15 +47,13 @@ $activeFilter = $_GET['sport'] ?? 'all';
                 echo '<span class="' . $statusClass . ' px-2 py-0.5 rounded-full text-xs">' . strtoupper($match['status']) . '</span>';
                 echo '</div>';
                 echo '<div class="flex justify-between mb-3">';
-                echo '<div class="flex items-center space-x-2">';
-                echo '<img src="https://flagcdn.com/w40/' . strtolower($match['team1_country'] ?? ($match['sport'] === 'cricket' ? 'in' : 'gb')) . '.svg" alt="' . htmlspecialchars($match['team1'] ?? '') . ' flag" class="w-6 h-6">';
+                echo '<div class="flex items-center">';
                 echo '<span class="text-lg">' . htmlspecialchars($match['team1'] ?? '') . '</span>';
                 echo '</div>';
                 echo '<span class="font-bold text-lg">' . htmlspecialchars($match['team1_score'] ?? '0') . '</span>';
                 echo '</div>';
                 echo '<div class="flex justify-between mb-3">';
-                echo '<div class="flex items-center space-x-2">';
-                echo '<img src="https://flagcdn.com/w40/' . strtolower($match['team2_country'] ?? ($match['sport'] === 'cricket' ? 'in' : 'gb')) . '.svg" alt="' . htmlspecialchars($match['team2'] ?? '') . ' flag" class="w-6 h-6">';
+                echo '<div class="flex items-center">';
                 echo '<span class="text-lg">' . htmlspecialchars($match['team2'] ?? '') . '</span>';
                 echo '</div>';
                 echo '<span class="text-lg">' . htmlspecialchars($match['team2_score'] ?? ($match['status'] === 'upcoming' ? '-' : '0')) . '</span>';
@@ -80,27 +78,76 @@ $activeFilter = $_GET['sport'] ?? 'all';
 
 <script>
 function toggleFavorite(matchId, isFavorite) {
+    // Validate required parameters
+    if (!matchId) {
+        alert('Error: Missing match ID');
+        return;
+    }
+    
+    // Create a loading indicator
+    const targetButton = event.target;
+    const originalText = targetButton.innerHTML;
+    targetButton.innerHTML = '⟳ Processing...';
+    targetButton.disabled = true;
+
     const formData = new FormData();
     formData.append('toggle_favorite', '1');
     formData.append('user_id', '<?php echo $_SESSION['user_id'] ?? ''; ?>');
     formData.append('match_id', matchId);
-    formData.append('is_favorite', isFavorite);
+    formData.append('is_favorite', isFavorite ? 'true' : 'false');
 
-    fetch('../backend/match.php', {
+    // Add a timestamp to prevent caching
+    const timestamp = new Date().getTime();
+    
+    fetch(`../backend/match.php?_=${timestamp}`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Network error: ${response.status} ${response.statusText}`);
+        }
+        return response.text().then(text => {
+            if (!text || text.trim() === '') {
+                console.error('Empty response from server');
+                return { success: false, error: 'Empty response from server' };
+            }
+            
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('Invalid JSON response:', text);
+                throw new Error('Invalid JSON response from server');
+            }
+        });
+    })
     .then(data => {
         if (data.success) {
-            window.location.reload();
+            // Update the button without reloading the page
+            const newIsFavorite = !isFavorite;
+            const favoriteIcon = newIsFavorite ? '♥' : '♡';
+            const favoriteText = newIsFavorite ? 'Remove' : 'Favorite';
+            targetButton.classList.toggle('text-red-500', newIsFavorite);
+            targetButton.classList.toggle('text-gray-500', !newIsFavorite);
+            targetButton.innerHTML = `${favoriteIcon} ${favoriteText}`;
+            targetButton.disabled = false;
+            
+            // Update the onclick attribute for the next click
+            targetButton.setAttribute('onclick', `toggleFavorite(${matchId}, ${newIsFavorite})`);
         } else {
-            alert('Failed to update favorite status');
+            targetButton.innerHTML = originalText;
+            targetButton.disabled = false;
+            alert('Failed to update favorite status: ' + (data.error || 'Unknown error'));
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('An error occurred while updating favorite status');
+        targetButton.innerHTML = originalText;
+        targetButton.disabled = false;
+        alert('An error occurred while updating favorite status: ' + error.message);
     });
 }
 </script>

@@ -1,4 +1,19 @@
 <?php
+/**
+ * SportSync Main Entry Point
+ *
+ * This is the main entry point for the SportSync application which serves as a router
+ * and controller for all frontend pages. It handles:
+ * - Routing requests to appropriate page files
+ * - User session validation
+ * - Newsletter subscription submissions
+ * - Access control for protected areas
+ *
+ * The file implements a simple routing mechanism based on the 'page' GET parameter
+ * to determine which content to display. Restricted areas like dashboard and admin
+ * pages check for user authentication before allowing access.
+ */
+
 // Enable error reporting
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -21,6 +36,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 // Set page variable
 $page = isset($_GET['page']) ? $_GET['page'] : 'home';
+
+// Set a global flag to indicate we're including from index.php
+$GLOBALS['indexPhpInclude'] = true;
 
 // Include the page content
 switch($page) {
@@ -47,7 +65,7 @@ switch($page) {
         require __DIR__ . '/live-scores.php';
         break;
     case 'feedback':
-        require __DIR__ . '/feedback.php';
+        include __DIR__ . '/feedback.php';
         break;
     case 'thank-you':
         require __DIR__ . '/thank-you.php';

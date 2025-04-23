@@ -1,9 +1,104 @@
 <?php
-require_once __DIR__ . '/../backend/match.php';
+require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/email.php';
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe'])) {
+    error_log("Newsletter form submitted with email: " . ($_POST['email'] ?? 'not set'));
+    
+    $email = trim($_POST['email'] ?? '');
+    $errors = [];
+
+    // Validate email
+    if (empty($email)) {
+        $errors[] = "Email is required";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Invalid email format";
+    }
+
+    if (empty($errors)) {
+        try {
+            $db = getDB();
+            
+            // Check if subscriptions table exists
+            $tables = $db->query("SHOW TABLES LIKE 'subscriptions'")->fetchAll(PDO::FETCH_COLUMN);
+            if (empty($tables)) {
+                // Create subscriptions table if it doesn't exist
+                $db->exec("CREATE TABLE subscriptions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )");
+                error_log("Created subscriptions table");
+            }
+            
+            // Check if email already exists
+            $stmt = $db->prepare("SELECT id FROM subscriptions WHERE email = ?");
+            $stmt->execute([$email]);
+            
+            if ($stmt->rowCount() > 0) {
+                $errors[] = "This email is already subscribed";
+                error_log("Email already exists: $email");
+            } else {
+                // Insert new subscription
+                $stmt = $db->prepare("INSERT INTO subscriptions (email) VALUES (?)");
+                $result = $stmt->execute([$email]);
+                
+                if ($result) {
+                    error_log("Successfully added subscription for: $email");
+                    // Send welcome email
+                    $emailSent = sendSubscriptionEmail($email);
+                    
+                    if ($emailSent) {
+                        $_SESSION['success_message'] = "Thank you for subscribing! We've sent a confirmation email.";
+                    } else {
+                        $_SESSION['success_message'] = "Thank you for subscribing! However, we couldn't send the confirmation email.";
+                    }
+                    
+                    // Redirect to prevent form resubmission
+                    header("Location: " . $_SERVER['PHP_SELF']);
+                    exit();
+                } else {
+                    $errors[] = "Failed to add your subscription. Please try again.";
+                    error_log("Failed to insert subscription: " . print_r($stmt->errorInfo(), true));
+                }
+            }
+        } catch (PDOException $e) {
+            error_log("Database error in newsletter subscription: " . $e->getMessage());
+            $errors[] = "An error occurred while processing your subscription. Please try again later.";
+        } catch (Exception $e) {
+            error_log("General error in newsletter subscription: " . $e->getMessage());
+            $errors[] = "An unexpected error occurred. Please try again later.";
+        }
+    }
+}
 ?>
 
-<footer class="bg-gray-900 text-white py-12">
+<!-- Display error messages -->
+<?php if (!empty($errors)): ?>
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <strong class="font-bold">Error!</strong>
+        <ul class="list-disc list-inside">
+            <?php foreach ($errors as $error): ?>
+                <li><?php echo htmlspecialchars($error); ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<!-- Display success message -->
+<?php if (isset($_SESSION['success_message'])): ?>
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <span class="block sm:inline"><?php echo htmlspecialchars($_SESSION['success_message']); ?></span>
+    </div>
+    <?php unset($_SESSION['success_message']); ?>
+<?php endif; ?>
+
+<footer class="bg-black text-white py-12">
+<div class="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400"></div>
     <div class="container mx-auto px-4">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <!-- About Section -->
@@ -28,25 +123,38 @@ require_once __DIR__ . '/../backend/email.php';
                 <h3 class="text-xl font-bold mb-4">Contact Us</h3>
                 <ul class="space-y-2 text-gray-400">
                     <li>Email: info@sportsync.com</li>
-                    <li>Phone: +1 234 567 890</li>
-                    <li><a href="?page=feedback" class="hover:text-red-500">Send Feedback</a></li>
+                    <li>Phone: +91 9631117684</li>
+                    <li><a href="?page=feedback" class="hover:text-red-500">Feedback</a></li>
                 </ul>
             </div>
 
             <!-- Newsletter Subscription -->
             <div class="col-span-1">
                 <h3 class="text-xl font-bold mb-4">Subscribe to Newsletter</h3>
-                <div id="newsletter-form">
-                    <div class="flex flex-col space-y-4">
-                        <input type="email" id="subscribe-email" placeholder="Enter your email" 
-                               class="bg-gray-800 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-red-500">
-                        <button onclick="subscribeNewsletter()" 
-                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors">
-                            Subscribe
-                        </button>
+                <form method="POST" action="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>" class="space-y-4">
+                    <div>
+                        <input type="email" id="subscribe-email" name="email" placeholder="Enter your email" 
+                               class="w-full bg-gray-800 text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                               required>
                     </div>
-                    <div id="newsletter-message" class="mt-2 text-sm"></div>
-                </div>
+                    <button type="submit" name="subscribe" 
+                            class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors">
+                        Subscribe
+                    </button>
+                </form>
+                <?php if (!empty($errors)): ?>
+                    <div class="mt-2 text-sm text-red-500">
+                        <?php foreach ($errors as $error): ?>
+                            <p><?php echo htmlspecialchars($error); ?></p>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['success_message'])): ?>
+                    <div class="mt-2 text-sm text-green-500">
+                        <?php echo htmlspecialchars($_SESSION['success_message']); ?>
+                    </div>
+                    <?php unset($_SESSION['success_message']); ?>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -59,63 +167,5 @@ require_once __DIR__ . '/../backend/email.php';
 
 <!-- Font Awesome -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<script>
-function subscribeNewsletter() {
-    const emailInput = document.getElementById('subscribe-email');
-    const messageDiv = document.getElementById('newsletter-message');
-    const subscribeButton = document.querySelector('#newsletter-form button');
-    const email = emailInput.value.trim();
-
-    // Reset message
-    messageDiv.textContent = '';
-    messageDiv.className = 'mt-2 text-sm';
-
-    if (!email) {
-        messageDiv.textContent = 'Please enter your email address.';
-        messageDiv.classList.add('text-red-500');
-        return;
-    }
-
-    // Show loading state
-    subscribeButton.textContent = 'Subscribing...';
-    subscribeButton.disabled = true;
-
-    const formData = new FormData();
-    formData.append('email', email);
-
-    fetch('../backend/newsletter.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            messageDiv.textContent = data.message;
-            messageDiv.classList.add('text-green-500');
-            emailInput.value = ''; // Clear input on success
-        } else {
-            messageDiv.textContent = data.message;
-            messageDiv.classList.add('text-red-500');
-        }
-    })
-    .catch(error => {
-        messageDiv.textContent = 'An error occurred. Please try again.';
-        messageDiv.classList.add('text-red-500');
-    })
-    .finally(() => {
-        // Reset button state
-        subscribeButton.textContent = 'Subscribe';
-        subscribeButton.disabled = false;
-    });
-}
-
-// Add enter key support for the newsletter form
-document.getElementById('subscribe-email').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        subscribeNewsletter();
-    }
-});
-</script>
 </body>
 </html>

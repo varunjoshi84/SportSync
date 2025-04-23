@@ -1,8 +1,25 @@
 <?php
+/**
+ * Database Management File
+ * 
+ * This file contains all database-related functions for the SportSync application
+ * including connection handling, table creation, and query execution.
+ * 
+ */
+
 if (!function_exists('checkDatabaseStructure')) {
-    function checkDatabaseStructure() {
+    /**
+     * Checks the database structure to ensure tables exist and have correct schema
+     * 
+     * @param PDO $db Optional database connection
+     * @return boolean True if structure is valid, false otherwise
+     */
+    function checkDatabaseStructure($db = null) {
         try {
-            $db = getDB();
+            // If db connection not provided, get it
+            if ($db === null) {
+                $db = getDB();
+            }
             
             // Check if users table exists and its structure
             $result = $db->query("DESCRIBE users");
@@ -23,9 +40,35 @@ if (!function_exists('checkDatabaseStructure')) {
 }
 
 if (!function_exists('testDatabaseConnection')) {
+    /**
+     * Tests the database connection with various connection methods
+     * 
+     * @return boolean True if connection successful, false otherwise
+     */
     function testDatabaseConnection() {
         try {
-            $db = getDB();
+            $host = 'localhost';
+            $dbname = 'sport_sync';
+            $username = 'root';
+            $password = '';
+            
+            // Try different connection methods
+            $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8";
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            
+            try {
+                $db = new PDO($dsn, $username, $password, $options);
+            } catch (PDOException $e) {
+                // If direct connection fails, try with socket
+                $socket = '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock';
+                $dsn = "mysql:unix_socket=$socket;dbname=$dbname;charset=utf8";
+                $db = new PDO($dsn, $username, $password, $options);
+            }
+            
             $result = $db->query("SHOW TABLES");
             $tables = $result->fetchAll(PDO::FETCH_COLUMN);
             error_log("Connected to database. Tables found: " . implode(", ", $tables));
@@ -38,95 +81,59 @@ if (!function_exists('testDatabaseConnection')) {
 }
 
 if (!function_exists('getDB')) {
+    /**
+     * Creates and returns a database connection
+     * 
+     * @return PDO Database connection object
+     * @throws Exception If connection fails
+     */
     function getDB() {
         $host = 'localhost';
         $dbname = 'sport_sync';
         $username = 'root';
         $password = '';
-        $socket = '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock';
-
+        
         try {
-            // First try to connect to MySQL without selecting a database
-            $pdo = new PDO("mysql:unix_socket=$socket", $username, $password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            // Try different connection methods
+            $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8";
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
             
-            // Check if database exists, if not create it
-            $result = $pdo->query("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$dbname'");
-            if ($result->rowCount() == 0) {
-                $pdo->exec("CREATE DATABASE `$dbname`");
-                error_log("Database '$dbname' created successfully");
+            try {
+                $db = new PDO($dsn, $username, $password, $options);
+            } catch (PDOException $e) {
+                // If direct connection fails, try with socket
+                $socket = '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock';
+                $dsn = "mysql:unix_socket=$socket;dbname=$dbname;charset=utf8";
+                $db = new PDO($dsn, $username, $password, $options);
             }
-            
-            // Now connect to the specific database
-            $db = new PDO("mysql:unix_socket=$socket;dbname=$dbname;charset=utf8", $username, $password);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
             // Test the connection
             $db->query("SELECT 1");
             
-            // Create matches table if it doesn't exist
-            $db->exec("CREATE TABLE IF NOT EXISTS matches (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                team1 VARCHAR(255) NOT NULL,
-                team2 VARCHAR(255) NOT NULL,
-                team1_flag VARCHAR(10) DEFAULT 'gb',
-                team2_flag VARCHAR(10) DEFAULT 'gb',
-                team1_score INT DEFAULT 0,
-                team2_score INT DEFAULT 0,
-                venue VARCHAR(255) NOT NULL,
-                match_time DATETIME NOT NULL,
-                sport VARCHAR(50) NOT NULL,
-                status ENUM('upcoming', 'live', 'completed') DEFAULT 'upcoming',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )");
-
-            // Create users table if it doesn't exist
-            $db->exec("CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL,
-                email VARCHAR(100) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )");
-
-            // Create newsletter table if it doesn't exist
-            $db->exec("CREATE TABLE IF NOT EXISTS newsletter (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                email VARCHAR(255) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )");
-
-            // Create feedback table if it doesn't exist
-            $db->exec("CREATE TABLE IF NOT EXISTS feedback (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL,
-                subject VARCHAR(255) NOT NULL,
-                message TEXT NOT NULL,
-                status ENUM('pending', 'read', 'responded') DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )");
-
-            // Create favorites table if it doesn't exist
-            $db->exec("CREATE TABLE IF NOT EXISTS favorites (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                match_id INT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_favorite (user_id, match_id),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
-            )");
+            // Don't call initializeTables here to avoid circular dependency
+            // Tables will be initialized separately
             
             return $db;
         } catch (PDOException $e) {
             error_log("Database connection error: " . $e->getMessage());
-            throw $e;
+            throw new Exception("Database connection failed: " . $e->getMessage());
         }
     }
 }
 
 if (!function_exists('executeQuery')) {
+    /**
+     * Executes a SQL query with optional parameters
+     * 
+     * @param string $sql SQL query to execute
+     * @param array $params Array of parameters for the prepared statement
+     * @return array Result set as associative array
+     * @throws Exception If query execution fails
+     */
     function executeQuery($sql, $params = []) {
         try {
             error_log("Executing SQL: " . $sql);
@@ -161,6 +168,11 @@ if (!function_exists('executeQuery')) {
 }
 
 if (!function_exists('createNewsTable')) {
+    /**
+     * Creates the news table if it doesn't exist
+     * 
+     * @return array Result of query execution
+     */
     function createNewsTable() {
         $sql = "CREATE TABLE IF NOT EXISTS news (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -174,6 +186,11 @@ if (!function_exists('createNewsTable')) {
 }
 
 if (!function_exists('createMatchTable')) {
+    /**
+     * Creates the matches table if it doesn't exist
+     * 
+     * @return array Result of query execution
+     */
     function createMatchTable() {
         $sql = "CREATE TABLE IF NOT EXISTS matches (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -192,6 +209,12 @@ if (!function_exists('createMatchTable')) {
 }
 
 if (!function_exists('createUsersTable')) {
+    /**
+     * Creates the users table if it doesn't exist
+     * 
+     * @return boolean True if table created or exists
+     * @throws Exception If creation fails
+     */
     function createUsersTable() {
         try {
             $sql = "CREATE TABLE IF NOT EXISTS users (
@@ -199,6 +222,7 @@ if (!function_exists('createUsersTable')) {
                 username VARCHAR(50) NOT NULL UNIQUE,
                 password VARCHAR(255) NOT NULL,
                 email VARCHAR(100) NOT NULL UNIQUE,
+                account_type ENUM('user', 'admin') DEFAULT 'user',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )";
             executeQuery($sql);
@@ -212,6 +236,11 @@ if (!function_exists('createUsersTable')) {
 }
 
 if (!function_exists('createFavoritesTable')) {
+    /**
+     * Creates the favorites table if it doesn't exist
+     * 
+     * @return array Result of query execution
+     */
     function createFavoritesTable() {
         $sql = "CREATE TABLE IF NOT EXISTS favorites (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -226,12 +255,19 @@ if (!function_exists('createFavoritesTable')) {
 }
 
 if (!function_exists('createFeedbackTable')) {
+    /**
+     * Creates the feedback table if it doesn't exist
+     * 
+     * @return array Result of query execution
+     */
     function createFeedbackTable() {
         $sql = "CREATE TABLE IF NOT EXISTS feedback (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
             email VARCHAR(100) NOT NULL,
+            subject VARCHAR(200) NOT NULL,
             message TEXT NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )";
         return executeQuery($sql);
@@ -239,6 +275,11 @@ if (!function_exists('createFeedbackTable')) {
 }
 
 if (!function_exists('createSubscriptionsTable')) {
+    /**
+     * Creates the subscriptions table if it doesn't exist
+     * 
+     * @return array Result of query execution
+     */
     function createSubscriptionsTable() {
         $sql = "CREATE TABLE IF NOT EXISTS subscriptions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -250,17 +291,29 @@ if (!function_exists('createSubscriptionsTable')) {
 }
 
 if (!function_exists('initializeTables')) {
-    function initializeTables() {
+    /**
+     * Initializes all database tables
+     * 
+     * @param PDO $db Optional database connection
+     * @return boolean True if all tables initialized successfully
+     * @throws Exception If initialization fails
+     */
+    function initializeTables($db = null) {
         try {
             // Test database connection first
             if (!testDatabaseConnection()) {
                 throw new Exception("Database connection test failed");
             }
             
+            // If db connection not provided, get it
+            if ($db === null) {
+                $db = getDB();
+            }
+            
             createUsersTable();
             
             // Check database structure
-            checkDatabaseStructure();
+            checkDatabaseStructure($db);
             
             error_log("All tables initialized successfully");
             return true;

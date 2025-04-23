@@ -30,15 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="${statusClass} px-2 py-0.5 rounded-full text-xs">${match.status.toUpperCase()}</span>
                             </div>
                             <div class="flex justify-between mb-2">
-                                <div class="flex items-center space-x-2">
-                                    <img src="https://flagcdn.com/w40/${match.team1_country ?? 'us'}.svg" alt="${match.team1} flag" class="w-5 h-5">
+                                <div class="flex items-center">
                                     <span>${match.team1}</span>
                                 </div>
                                 <span class="font-bold">${match.team1_score}</span>
                             </div>
                             <div class="flex justify-between mb-2">
-                                <div class="flex items-center space-x-2">
-                                    <img src="https://flagcdn.com/w40/${match.team2_country ?? 'us'}.svg" alt="${match.team2} flag" class="w-5 h-5">
+                                <div class="flex items-center">
                                     <span>${match.team2}</span>
                                 </div>
                                 <span>${match.team2_score ?? (match.status === 'upcoming' ? '-' : '0')}</span>

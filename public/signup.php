@@ -1,6 +1,26 @@
+// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/public/signup.php
+/**
+ * Signup Page
+ *
+ * This page handles new user registration for the SportSync platform.
+ * Features include:
+ * - User registration with username, email, and password
+ * - Form validation and error handling
+ * - Password strength requirements
+ * - Email format validation
+ * - Session-based error messaging
+ * - Redirection to login page after successful registration
+ * - Prevention of duplicate email registrations
+ */
+
 <?php
 // Include initialization file
 require_once __DIR__ . '/init.php';
+
+// Ensure session is started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $page = 'signup';
 include __DIR__ . '/header.php';
@@ -14,21 +34,46 @@ if (!isset($_POST['username']) && !isset($_POST['email']) && !isset($_POST['pass
     unset($_SESSION['signup_error']);
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = $_POST['username'];
-    $email = $_POST['email'];
+$error = null;
+$success = false;
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['form_submit']) && $_POST['form_submit'] == 'signup') {
+    $username = trim($_POST['username']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'];
-    $user = registerUser($username, $email, $password);
-    if ($user !== false) {
-        header("Location: ?page=login");
-        exit();
+    
+    // Basic validation
+    if (empty($username) || empty($email) || empty($password)) {
+        $error = "All fields are required.";
+    } elseif (strlen($password) < 6) {
+        $error = "Password must be at least 6 characters long.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
     } else {
-        $_SESSION['signup_error'] = "Registration failed! Email may already exist.";
-        header("Location: ?page=signup"); // Reload page with error
-        exit();
+        // Attempt to register the user
+        $result = registerUser($username, $email, $password);
+        
+        if ($result === true) {
+            $success = true;
+            // Redirect to login page after successful registration
+            header("Location: ?page=login&registered=1");
+            exit();
+        } else {
+            $error = "Registration failed! Email may already exist.";
+        }
+    }
+    
+    // If there was an error, store it in session
+    if ($error) {
+        $_SESSION['signup_error'] = $error;
     }
 }
-$error = $_SESSION['signup_error'] ?? null;
+
+// Get error from session if it exists
+if (isset($_SESSION['signup_error'])) {
+    $error = $_SESSION['signup_error'];
+    unset($_SESSION['signup_error']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -44,8 +89,21 @@ $error = $_SESSION['signup_error'] ?? null;
     <div class="flex-grow flex items-center justify-center min-h-screen pt-16">
         <div class="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md mx-4">
             <h2 class="text-2xl font-bold text-white text-center mb-6">Sign Up</h2>
-            <?php if ($error) echo "<p class='text-red-500 text-center mb-4'>$error</p>"; ?>
-            <form method="POST" class="space-y-4">
+            
+            <?php if ($error): ?>
+                <div class="bg-red-500 text-white p-3 rounded-lg mb-4 text-center">
+                    <?php echo htmlspecialchars($error); ?>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($success): ?>
+                <div class="bg-green-500 text-white p-3 rounded-lg mb-4 text-center">
+                    Registration successful! You can now login.
+                </div>
+            <?php endif; ?>
+            
+            <form method="POST" action="?page=signup" class="space-y-4">
+                <input type="hidden" name="form_submit" value="signup">
                 <div>
                     <input type="text" name="username" placeholder="Username" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
                 </div>
@@ -64,9 +122,3 @@ $error = $_SESSION['signup_error'] ?? null;
     <?php include __DIR__ . '/footer.php'; ?>
 </body>
 </html>
-<?php
-// Clear error after displaying
-if (isset($_SESSION['signup_error'])) {
-    unset($_SESSION['signup_error']);
-}
-?>

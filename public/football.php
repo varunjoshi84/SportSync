@@ -12,6 +12,7 @@ include __DIR__ . '/header.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SportSync - Football</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/toggle-favorite.js"></script>
 </head>
 <body class="bg-black min-h-screen flex flex-col">
     <div class="flex-grow">
@@ -59,8 +60,7 @@ include __DIR__ . '/header.php';
                     </div>
                     
                     <div class="flex justify-between mb-3">
-                        <div class="flex items-center space-x-2">
-                            <img src="https://flagcdn.com/w40/<?php echo strtolower($match['team1_country'] ?? 'gb'); ?>.svg" alt="<?php echo htmlspecialchars($match['team1']); ?> flag" class="w-6 h-6">
+                        <div class="flex items-center">
                             <span class="text-lg"><?php echo htmlspecialchars($match['team1']); ?></span>
                         </div>
                         <span class="font-bold text-lg">
@@ -75,8 +75,7 @@ include __DIR__ . '/header.php';
                     </div>
                     
                     <div class="flex justify-between mb-3">
-                        <div class="flex items-center space-x-2">
-                            <img src="https://flagcdn.com/w40/<?php echo strtolower($match['team2_country'] ?? 'gb'); ?>.svg" alt="<?php echo htmlspecialchars($match['team2']); ?> flag" class="w-6 h-6">
+                        <div class="flex items-center">
                             <span class="text-lg"><?php echo htmlspecialchars($match['team2']); ?></span>
                         </div>
                         <span class="text-lg">
@@ -93,12 +92,12 @@ include __DIR__ . '/header.php';
                     <div class="flex justify-between text-sm text-gray-500 mt-3">
                         <span><?php echo htmlspecialchars($match['venue']); ?></span>
                         <?php if (isset($_SESSION['user_id'])): ?>
-                            <button onclick="toggleFavorite(<?php echo $match['id']; ?>, <?php echo $isFavorite ? 'true' : 'false'; ?>)" 
+                            <button onclick="toggleFavorite(<?php echo $match['id']; ?>, <?php echo $isFavorite ? 'true' : 'false'; ?>, <?php echo $_SESSION['user_id']; ?>)" 
                                     class="<?php echo $favoriteClass; ?> hover:text-red-400 cursor-pointer">
                                 <?php echo $favoriteIcon; ?> <?php echo $isFavorite ? 'Remove' : 'Favorite'; ?>
                             </button>
                         <?php else: ?>
-                            <a href="?page=login" class="text-gray-500 hover:text-red-400 cursor-pointer">♡ Login to Favorite</a>
+                            <a href="login.php" class="text-gray-500 hover:text-red-400 cursor-pointer">♡ Login to Favorite</a>
                         <?php endif; ?>
                     </div>
                     
@@ -170,8 +169,7 @@ include __DIR__ . '/header.php';
                                 </div>
                                 
                                 <div class="flex justify-between mb-3">
-                                    <div class="flex items-center space-x-2">
-                                        <img src="https://flagcdn.com/w40/${(match.team1_country || 'gb').toLowerCase()}.svg" alt="${match.team1} flag" class="w-6 h-6">
+                                    <div class="flex items-center">
                                         <span class="text-lg">${match.team1}</span>
                                     </div>
                                     <span class="font-bold text-lg">
@@ -180,8 +178,7 @@ include __DIR__ . '/header.php';
                                 </div>
                                 
                                 <div class="flex justify-between mb-3">
-                                    <div class="flex items-center space-x-2">
-                                        <img src="https://flagcdn.com/w40/${(match.team2_country || 'gb').toLowerCase()}.svg" alt="${match.team2} flag" class="w-6 h-6">
+                                    <div class="flex items-center">
                                         <span class="text-lg">${match.team2}</span>
                                     </div>
                                     <span class="text-lg">
@@ -237,27 +234,61 @@ include __DIR__ . '/header.php';
     });
 
     function toggleFavorite(matchId, isFavorite) {
+        // Create a spinner or loading indicator
+        const targetButton = event.target;
+        const originalText = targetButton.innerHTML;
+        targetButton.innerHTML = '⟳ Processing...';
+        targetButton.disabled = true;
+
         const formData = new FormData();
         formData.append('toggle_favorite', '1');
         formData.append('user_id', '<?php echo $_SESSION['user_id'] ?? ''; ?>');
         formData.append('match_id', matchId);
-        formData.append('is_favorite', isFavorite);
+        formData.append('is_favorite', isFavorite ? 'true' : 'false');
 
-        fetch('../backend/match.php', {
+        // Add a timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        
+        fetch(`../backend/match.php?_=${timestamp}`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Network error: ${response.status} ${response.statusText}`);
+            }
+            return response.text().then(text => {
+                if (!text || text.trim() === '') {
+                    console.error('Empty response from server');
+                    return { success: false, error: 'Empty response from server' };
+                }
+                
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('Invalid JSON response:', text);
+                    throw new Error('Invalid JSON response from server');
+                }
+            });
+        })
         .then(data => {
             if (data.success) {
+                console.log('Favorite toggled successfully:', data);
                 window.location.reload();
             } else {
-                alert('Failed to update favorite status');
+                targetButton.innerHTML = originalText;
+                targetButton.disabled = false;
+                alert('Failed to update favorite status: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while updating favorite status');
+            targetButton.innerHTML = originalText;
+            targetButton.disabled = false;
+            alert('An error occurred while updating favorite status: ' + error.message);
         });
     }
     </script>

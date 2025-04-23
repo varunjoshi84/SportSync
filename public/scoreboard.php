@@ -9,7 +9,12 @@ $match_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $match = null;
 if ($match_id > 0) {
     require_once __DIR__ . '/../backend/match.php';
+    require_once __DIR__ . '/../backend/player.php';
     $match = getMatchById($match_id);
+    
+    // Fetch players for both teams
+    $team1Players = getPlayersByMatch($match_id, $match['team1']);
+    $team2Players = getPlayersByMatch($match_id, $match['team2']);
 }
 
 // Redirect if match not found
@@ -97,33 +102,31 @@ include __DIR__ . '/header.php';
                                 </tr>
                             </thead>
                             <tbody>
+                                <?php 
+                                $batsmen = array_filter($team1Players ?? [], function($player) {
+                                    return $player['role'] === 'Batsman' || $player['role'] === 'All-rounder';
+                                });
+                                
+                                if (!empty($batsmen)): 
+                                    foreach ($batsmen as $player):
+                                ?>
                                 <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">Virat Kohli</td>
-                                    <td class="py-2 px-4">85</td>
-                                    <td class="py-2 px-4">76</td>
-                                    <td class="py-2 px-4">8</td>
-                                    <td class="py-2 px-4">2</td>
-                                    <td class="py-2 px-4">111.84</td>
-                                    <td class="py-2 px-4">c Smith b Starc</td>
+                                    <td class="py-2 px-4"><?php echo htmlspecialchars($player['name']); ?></td>
+                                    <td class="py-2 px-4"><?php echo $player['score']; ?></td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
                                 </tr>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
                                 <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">Rohit Sharma</td>
-                                    <td class="py-2 px-4">62</td>
-                                    <td class="py-2 px-4">45</td>
-                                    <td class="py-2 px-4">7</td>
-                                    <td class="py-2 px-4">1</td>
-                                    <td class="py-2 px-4">137.78</td>
-                                    <td class="py-2 px-4">lbw b Cummins</td>
+                                    <td colspan="7" class="py-2 px-4 text-center">No player data available</td>
                                 </tr>
-                                <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">KL Rahul</td>
-                                    <td class="py-2 px-4">45</td>
-                                    <td class="py-2 px-4">38</td>
-                                    <td class="py-2 px-4">5</td>
-                                    <td class="py-2 px-4">0</td>
-                                    <td class="py-2 px-4">118.42</td>
-                                    <td class="py-2 px-4">not out</td>
-                                </tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -145,30 +148,30 @@ include __DIR__ . '/header.php';
                                 </tr>
                             </thead>
                             <tbody>
+                                <?php 
+                                $bowlers = array_filter($team2Players ?? [], function($player) {
+                                    return $player['role'] === 'Bowler' || $player['role'] === 'All-rounder';
+                                });
+                                
+                                if (!empty($bowlers)): 
+                                    foreach ($bowlers as $player):
+                                ?>
                                 <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">Mitchell Starc</td>
-                                    <td class="py-2 px-4">10</td>
-                                    <td class="py-2 px-4">1</td>
-                                    <td class="py-2 px-4">65</td>
-                                    <td class="py-2 px-4">2</td>
-                                    <td class="py-2 px-4">6.50</td>
+                                    <td class="py-2 px-4"><?php echo htmlspecialchars($player['name']); ?></td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
+                                    <td class="py-2 px-4">-</td>
                                 </tr>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
                                 <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">Pat Cummins</td>
-                                    <td class="py-2 px-4">10</td>
-                                    <td class="py-2 px-4">0</td>
-                                    <td class="py-2 px-4">72</td>
-                                    <td class="py-2 px-4">1</td>
-                                    <td class="py-2 px-4">7.20</td>
+                                    <td colspan="6" class="py-2 px-4 text-center">No player data available</td>
                                 </tr>
-                                <tr class="border-t border-gray-700 text-white">
-                                    <td class="py-2 px-4">Adam Zampa</td>
-                                    <td class="py-2 px-4">10</td>
-                                    <td class="py-2 px-4">0</td>
-                                    <td class="py-2 px-4">58</td>
-                                    <td class="py-2 px-4">1</td>
-                                    <td class="py-2 px-4">5.80</td>
-                                </tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -178,9 +181,39 @@ include __DIR__ . '/header.php';
                 <div>
                     <h4 class="text-lg font-semibold text-white mb-2">Match Summary</h4>
                     <div class="bg-gray-800 rounded-lg p-4 text-white">
-                        <p class="mb-2"><strong>Result:</strong> <?php echo htmlspecialchars($match['team1']); ?> won by 5 wickets</p>
-                        <p class="mb-2"><strong>Player of the Match:</strong> Virat Kohli (<?php echo htmlspecialchars($match['team1']); ?>)</p>
-                        <p><strong>Match Highlights:</strong> <?php echo htmlspecialchars($match['team1']); ?> chased down the target of <?php echo $match['team2_score']; ?> with 2 overs to spare. Virat Kohli's 85 off 76 balls was the highlight of the innings.</p>
+                        <p class="mb-2"><strong>Result:</strong> 
+                            <?php if ($match['status'] === 'completed'): ?>
+                                <?php echo $match['team1_score'] > $match['team2_score'] ? 
+                                    htmlspecialchars($match['team1']) . ' won' : 
+                                    htmlspecialchars($match['team2']) . ' won'; ?>
+                            <?php else: ?>
+                                Match in progress
+                            <?php endif; ?>
+                        </p>
+                        <?php if (!empty($team1Players) || !empty($team2Players)): ?>
+                            <?php 
+                            $topScorer = null;
+                            $maxScore = 0;
+                            
+                            foreach (array_merge($team1Players ?? [], $team2Players ?? []) as $player) {
+                                if ($player['score'] > $maxScore) {
+                                    $maxScore = $player['score'];
+                                    $topScorer = $player;
+                                }
+                            }
+                            
+                            if ($topScorer): 
+                            ?>
+                            <p class="mb-2"><strong>Top Performer:</strong> 
+                                <?php echo htmlspecialchars($topScorer['name'] . ' (' . $topScorer['team'] . ')'); ?>
+                            </p>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        <p><strong>Match Highlights:</strong> 
+                            <?php echo $match['status'] === 'upcoming' ? 
+                                'Match yet to start.' : 
+                                'Match highlights will be updated soon.'; ?>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -195,7 +228,7 @@ include __DIR__ . '/header.php';
                         <h4 class="text-lg font-semibold text-white mb-2">Possession</h4>
                         <div class="flex justify-between items-center">
                             <div class="text-white"><?php echo htmlspecialchars($match['team1']); ?></div>
-                            <div class="text-white font-bold">55%</div>
+                            <div class="text-white font-bold"><?php echo $match['team1_possession'] ?? '50'; ?>%</div>
                             <div class="text-white"><?php echo htmlspecialchars($match['team2']); ?></div>
                         </div>
                     </div>
@@ -203,7 +236,7 @@ include __DIR__ . '/header.php';
                         <h4 class="text-lg font-semibold text-white mb-2">Shots on Target</h4>
                         <div class="flex justify-between items-center">
                             <div class="text-white"><?php echo htmlspecialchars($match['team1']); ?></div>
-                            <div class="text-white font-bold">8</div>
+                            <div class="text-white font-bold"><?php echo $match['team1_shots'] ?? '0'; ?> - <?php echo $match['team2_shots'] ?? '0'; ?></div>
                             <div class="text-white"><?php echo htmlspecialchars($match['team2']); ?></div>
                         </div>
                     </div>
@@ -211,7 +244,7 @@ include __DIR__ . '/header.php';
                         <h4 class="text-lg font-semibold text-white mb-2">Corners</h4>
                         <div class="flex justify-between items-center">
                             <div class="text-white"><?php echo htmlspecialchars($match['team1']); ?></div>
-                            <div class="text-white font-bold">6</div>
+                            <div class="text-white font-bold">-</div>
                             <div class="text-white"><?php echo htmlspecialchars($match['team2']); ?></div>
                         </div>
                     </div>
@@ -224,25 +257,42 @@ include __DIR__ . '/header.php';
                         <div class="bg-gray-800 rounded-lg p-4">
                             <h5 class="text-white font-semibold mb-2">Starting XI</h5>
                             <ul class="text-white space-y-1">
-                                <li>1. Alisson (GK)</li>
-                                <li>2. Trent Alexander-Arnold</li>
-                                <li>3. Virgil van Dijk (C)</li>
-                                <li>4. Joe Gomez</li>
-                                <li>5. Andy Robertson</li>
-                                <li>6. Fabinho</li>
-                                <li>7. Jordan Henderson</li>
-                                <li>8. Thiago</li>
-                                <li>9. Mohamed Salah</li>
-                                <li>10. Roberto Firmino</li>
-                                <li>11. Sadio Mane</li>
+                                <?php 
+                                $starters = array_filter($team1Players ?? [], function($player) {
+                                    return strpos($player['role'], 'Substitute') === false;
+                                });
+                                
+                                if (!empty($starters)): 
+                                    foreach ($starters as $index => $player):
+                                ?>
+                                <li><?php echo ($index + 1) . '. ' . htmlspecialchars($player['name']) . 
+                                    ($player['role'] === 'Goalkeeper' ? ' (GK)' : '') . 
+                                    (strpos($player['role'], 'Captain') !== false ? ' (C)' : ''); ?></li>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
+                                <li>No player data available</li>
+                                <?php endif; ?>
                             </ul>
                             
                             <h5 class="text-white font-semibold mt-4 mb-2">Substitutes</h5>
                             <ul class="text-white space-y-1">
-                                <li>12. Naby Keita</li>
-                                <li>13. Diogo Jota</li>
-                                <li>14. James Milner</li>
-                                <li>15. Alex Oxlade-Chamberlain</li>
+                                <?php 
+                                $substitutes = array_filter($team1Players ?? [], function($player) {
+                                    return strpos($player['role'], 'Substitute') !== false;
+                                });
+                                
+                                if (!empty($substitutes)): 
+                                    foreach ($substitutes as $index => $player):
+                                ?>
+                                <li><?php echo ($index + 1) . '. ' . htmlspecialchars($player['name']); ?></li>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
+                                <li>No substitute data available</li>
+                                <?php endif; ?>
                             </ul>
                         </div>
                     </div>
@@ -251,25 +301,42 @@ include __DIR__ . '/header.php';
                         <div class="bg-gray-800 rounded-lg p-4">
                             <h5 class="text-white font-semibold mb-2">Starting XI</h5>
                             <ul class="text-white space-y-1">
-                                <li>1. Ederson (GK)</li>
-                                <li>2. Kyle Walker</li>
-                                <li>3. Ruben Dias</li>
-                                <li>4. John Stones</li>
-                                <li>5. Joao Cancelo</li>
-                                <li>6. Rodri</li>
-                                <li>7. Kevin De Bruyne</li>
-                                <li>8. Bernardo Silva</li>
-                                <li>9. Raheem Sterling</li>
-                                <li>10. Phil Foden</li>
-                                <li>11. Gabriel Jesus</li>
+                                <?php 
+                                $starters = array_filter($team2Players ?? [], function($player) {
+                                    return strpos($player['role'], 'Substitute') === false;
+                                });
+                                
+                                if (!empty($starters)): 
+                                    foreach ($starters as $index => $player):
+                                ?>
+                                <li><?php echo ($index + 1) . '. ' . htmlspecialchars($player['name']) . 
+                                    ($player['role'] === 'Goalkeeper' ? ' (GK)' : '') . 
+                                    (strpos($player['role'], 'Captain') !== false ? ' (C)' : ''); ?></li>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
+                                <li>No player data available</li>
+                                <?php endif; ?>
                             </ul>
                             
                             <h5 class="text-white font-semibold mt-4 mb-2">Substitutes</h5>
                             <ul class="text-white space-y-1">
-                                <li>12. Riyad Mahrez</li>
-                                <li>13. Ilkay Gundogan</li>
-                                <li>14. Fernandinho</li>
-                                <li>15. Jack Grealish</li>
+                                <?php 
+                                $substitutes = array_filter($team2Players ?? [], function($player) {
+                                    return strpos($player['role'], 'Substitute') !== false;
+                                });
+                                
+                                if (!empty($substitutes)): 
+                                    foreach ($substitutes as $index => $player):
+                                ?>
+                                <li><?php echo ($index + 1) . '. ' . htmlspecialchars($player['name']); ?></li>
+                                <?php 
+                                    endforeach;
+                                else:
+                                ?>
+                                <li>No substitute data available</li>
+                                <?php endif; ?>
                             </ul>
                         </div>
                     </div>
@@ -279,50 +346,45 @@ include __DIR__ . '/header.php';
                 <div>
                     <h4 class="text-lg font-semibold text-white mb-2">Match Events</h4>
                     <div class="bg-gray-800 rounded-lg p-4">
-                        <div class="space-y-4">
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">12'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-red-500">⚽ GOAL</span> - Mohamed Salah (<?php echo htmlspecialchars($match['team1']); ?>)
-                                </div>
+                        <?php if ($match['status'] === 'upcoming'): ?>
+                            <div class="text-white text-center">Match has not started yet. Events will be updated during the match.</div>
+                        <?php elseif (empty($team1Players) && empty($team2Players)): ?>
+                            <div class="text-white text-center">No match events available yet. Please check back later.</div>
+                        <?php else: ?>
+                            <div class="space-y-4">
+                                <?php if ($match['team1_score'] > 0 || $match['team2_score'] > 0): ?>
+                                    <?php
+                                    // Find goal scorers based on player scores
+                                    $goalScorers = [];
+                                    foreach (array_merge($team1Players ?? [], $team2Players ?? []) as $player) {
+                                        if ($player['score'] > 0) {
+                                            $goalScorers[] = [
+                                                'name' => $player['name'],
+                                                'team' => $player['team'],
+                                                'time' => rand(1, 90) // Random minute for demonstration
+                                            ];
+                                        }
+                                    }
+                                    
+                                    // Sort by minute
+                                    usort($goalScorers, function($a, $b) {
+                                        return $a['time'] - $b['time'];
+                                    });
+                                    
+                                    foreach ($goalScorers as $scorer):
+                                    ?>
+                                    <div class="flex items-start">
+                                        <div class="w-16 text-gray-400 text-sm"><?php echo $scorer['time']; ?>'</div>
+                                        <div class="flex-1 text-white">
+                                            <span class="text-red-500">⚽ GOAL</span> - <?php echo htmlspecialchars($scorer['name'] . ' (' . $scorer['team'] . ')'); ?>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <div class="text-white text-center">No goals scored yet.</div>
+                                <?php endif; ?>
                             </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">28'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-red-500">⚽ GOAL</span> - Kevin De Bruyne (<?php echo htmlspecialchars($match['team2']); ?>)
-                                </div>
-                            </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">45'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-yellow-500">🟨 YELLOW CARD</span> - Fabinho (<?php echo htmlspecialchars($match['team1']); ?>)
-                                </div>
-                            </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">67'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-red-500">⚽ GOAL</span> - Sadio Mane (<?php echo htmlspecialchars($match['team1']); ?>)
-                                </div>
-                            </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">72'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-blue-500">🔄 SUBSTITUTION</span> - Naby Keita replaces Jordan Henderson (<?php echo htmlspecialchars($match['team1']); ?>)
-                                </div>
-                            </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">78'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-blue-500">🔄 SUBSTITUTION</span> - Riyad Mahrez replaces Phil Foden (<?php echo htmlspecialchars($match['team2']); ?>)
-                                </div>
-                            </div>
-                            <div class="flex items-start">
-                                <div class="w-16 text-gray-400 text-sm">89'</div>
-                                <div class="flex-1 text-white">
-                                    <span class="text-red-500">⚽ GOAL</span> - Raheem Sterling (<?php echo htmlspecialchars($match['team2']); ?>)
-                                </div>
-                            </div>
-                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -334,4 +396,4 @@ include __DIR__ . '/header.php';
 </body>
 </html>
 <?php
-?> 
+?>

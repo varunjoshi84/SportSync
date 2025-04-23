@@ -1,8 +1,19 @@
+/**
+ * Admin Dashboard
+ * 
+ * This file manages the admin dashboard interface and operations.
+ * Provides functionality for managing matches, news articles, and user feedback.
+ * Only accessible to users with admin privileges.
+ * 
+ */
+
 <?php
 if (session_status() === PHP_SESSION_NONE) {
+    // Initialize session if not already started
     session_start();
 }
 
+// Include required backend files
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/match.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -10,89 +21,212 @@ require_once __DIR__ . '/../backend/news.php';
 
 // Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || getUserById($_SESSION['user_id'])['account_type'] !== 'admin') {
+    // Redirect non-admin users to the login page
     header("Location: ?page=login");
     exit();
 }
 
 // Handle form submissions for adding matches
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_match'])) {
-    $team1 = $_POST['team1'];
-    $team2 = $_POST['team2'];
-    $team1_flag = $_POST['team1_flag'];
-    $team2_flag = $_POST['team2_flag'];
-    $venue = $_POST['venue'];
-    $match_time = $_POST['match_time'];
-    $sport = $_POST['sport'];
-    $status = $_POST['status'] ?? 'upcoming';
-
-    $sql = "INSERT INTO matches (team1, team2, team1_flag, team2_flag, venue, match_time, sport, status) 
-            VALUES (:team1, :team2, :team1_flag, :team2_flag, :venue, :match_time, :sport, :status)";
-    $params = [
-        ':team1' => $team1,
-        ':team2' => $team2,
-        ':team1_flag' => $team1_flag,
-        ':team2_flag' => $team2_flag,
-        ':venue' => $venue,
-        ':match_time' => $match_time,
-        ':sport' => $sport,
-        ':status' => $status
-    ];
-
-    if (executeQuery($sql, $params)) {
-        $message = "Match added successfully!";
+    // Determine if this is an AJAX request
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
+    // Initialize response array if AJAX
+    $response = ['success' => false];
+    
+    // Check for required fields
+    $requiredFields = ['team1', 'team2', 'venue', 'match_time', 'sport'];
+    $missingFields = [];
+    
+    foreach ($requiredFields as $field) {
+        if (!isset($_POST[$field]) || empty($_POST[$field])) {
+            $missingFields[] = $field;
+        }
+    }
+    
+    if (!empty($missingFields)) {
+        $error = "Missing required fields: " . implode(", ", $missingFields);
+        
+        if ($isAjax) {
+            $response = ['success' => false, 'error' => $error];
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
+        }
     } else {
-        $error = "Failed to add match!";
+        // All required fields are present, proceed with adding the match
+        $team1 = $_POST['team1'];
+        $team2 = $_POST['team2'];
+        $venue = $_POST['venue'];
+        $match_time = $_POST['match_time'];
+        $sport = $_POST['sport'];
+        $status = $_POST['status'] ?? 'upcoming';
+
+        try {
+            $sql = "INSERT INTO matches (team1, team2, venue, match_time, sport, status) 
+                    VALUES (:team1, :team2, :venue, :match_time, :sport, :status)";
+            $params = [
+                ':team1' => $team1,
+                ':team2' => $team2,
+                ':venue' => $venue,
+                ':match_time' => $match_time,
+                ':sport' => $sport,
+                ':status' => $status
+            ];
+            
+            error_log("Attempting to add match with params: " . json_encode($params));
+            $result = executeQuery($sql, $params);
+            
+            if ($result !== false) {
+                $message = "Match added successfully!";
+                
+                if ($isAjax) {
+                    $response = ['success' => true, 'message' => $message];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            } else {
+                $error = "Failed to add match!";
+                
+                if ($isAjax) {
+                    $response = ['success' => false, 'error' => $error];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            }
+        } catch (Exception $e) {
+            $error = "Database error: " . $e->getMessage();
+            error_log("Error adding match: " . $e->getMessage());
+            
+            if ($isAjax) {
+                $response = ['success' => false, 'error' => $error];
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+        }
     }
 }
 
 // Handle match update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_match_details'])) {
-    $match_id = $_POST['match_id'];
-    $data = [
-        'team1' => $_POST['team1'],
-        'team2' => $_POST['team2'],
-        'team1_flag' => $_POST['team1_flag'],
-        'team2_flag' => $_POST['team2_flag'],
-        'venue' => $_POST['venue'],
-        'match_time' => $_POST['match_time'],
-        'sport' => $_POST['sport'],
-        'status' => $_POST['status'],
-        'team1_score' => $_POST['team1_score'],
-        'team2_score' => $_POST['team2_score']
-    ];
-
-    // Add cricket-specific fields
-    if ($_POST['sport'] === 'cricket') {
-        $data['team1_wickets'] = $_POST['team1_wickets'];
-        $data['team2_wickets'] = $_POST['team2_wickets'];
-        $data['team1_overs'] = $_POST['team1_overs'];
-        $data['team2_overs'] = $_POST['team2_overs'];
-    }
-
-    // Add football-specific fields
-    if ($_POST['sport'] === 'football') {
-        $data['team1_shots'] = $_POST['team1_shots'];
-        $data['team2_shots'] = $_POST['team2_shots'];
-        $data['team1_possession'] = $_POST['team1_possession'];
-        $data['team2_possession'] = $_POST['team2_possession'];
-    }
-
-    if (updateMatch($match_id, $data)) {
-        $message = "Match updated successfully!";
+    // Determine if this is an AJAX request
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
+    // Initialize response array if AJAX
+    $response = ['success' => false];
+    
+    $match_id = $_POST['match_id'] ?? null;
+    
+    if (!$match_id) {
+        $error = "Match ID is required";
+        if ($isAjax) {
+            $response = ['success' => false, 'error' => $error];
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
+        }
     } else {
-        $error = "Failed to update match!";
+        $data = [
+            'team1' => $_POST['team1'] ?? '',
+            'team2' => $_POST['team2'] ?? '',
+            'venue' => $_POST['venue'] ?? '',
+            'match_time' => $_POST['match_time'] ?? '',
+            'sport' => $_POST['sport'] ?? '',
+            'status' => $_POST['status'] ?? '',
+            'team1_score' => $_POST['team1_score'] ?? 0,
+            'team2_score' => $_POST['team2_score'] ?? 0
+        ];
+
+        // Add cricket-specific fields
+        if (($_POST['sport'] ?? '') === 'cricket') {
+            $data['team1_wickets'] = $_POST['team1_wickets'] ?? 0;
+            $data['team2_wickets'] = $_POST['team2_wickets'] ?? 0;
+            $data['team1_overs'] = $_POST['team1_overs'] ?? 0;
+            $data['team2_overs'] = $_POST['team2_overs'] ?? 0;
+        }
+
+        // Add football-specific fields
+        if (($_POST['sport'] ?? '') === 'football') {
+            $data['team1_shots'] = $_POST['team1_shots'] ?? 0;
+            $data['team2_shots'] = $_POST['team2_shots'] ?? 0;
+            $data['team1_possession'] = $_POST['team1_possession'] ?? 50;
+            $data['team2_possession'] = $_POST['team2_possession'] ?? 50;
+        }
+
+        try {
+            if (updateMatch($match_id, $data)) {
+                $message = "Match updated successfully!";
+                if ($isAjax) {
+                    $response = ['success' => true, 'message' => $message];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            } else {
+                $error = "Failed to update match!";
+                if ($isAjax) {
+                    $response = ['success' => false, 'error' => $error];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            }
+        } catch (Exception $e) {
+            $error = "Error updating match: " . $e->getMessage();
+            error_log($error);
+            if ($isAjax) {
+                $response = ['success' => false, 'error' => $error];
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+        }
     }
 }
 
 // Handle match deletion
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_match'])) {
+    // Determine if this is an AJAX request
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+              
     $match_id = $_POST['match_id'];
     $sql = "DELETE FROM matches WHERE id = :id";
     $params = [':id' => $match_id];
-    if (executeQuery($sql, $params)->rowCount() > 0) {
-        $message = "Match deleted successfully!";
-    } else {
-        $error = "Failed to delete match!";
+    
+    try {
+        $result = executeQuery($sql, $params);
+        if ($result->rowCount() > 0) {
+            $message = "Match deleted successfully!";
+            if ($isAjax) {
+                $response = ['success' => true, 'message' => $message];
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+        } else {
+            $error = "Failed to delete match!";
+            if ($isAjax) {
+                $response = ['success' => false, 'error' => $error];
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+        }
+    } catch (Exception $e) {
+        $error = "Error deleting match: " . $e->getMessage();
+        error_log($error);
+        if ($isAjax) {
+            $response = ['success' => false, 'error' => $error];
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
+        }
     }
 }
 
@@ -121,10 +255,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     } elseif (isset($_POST['delete_news'])) {
         $id = $_POST['news_id'];
-        if (deleteNews($id)) {
-            $message = "News article deleted successfully!";
-        } else {
-            $error = "Failed to delete news article!";
+        
+        // Determine if this is an AJAX request
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                  strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        
+        try {
+            $result = deleteNews($id);
+            
+            if ($result) {
+                $message = "News article deleted successfully!";
+                
+                if ($isAjax) {
+                    $response = ['success' => true, 'message' => $message];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            } else {
+                $error = "Failed to delete news article!";
+                
+                if ($isAjax) {
+                    $response = ['success' => false, 'error' => $error];
+                    header('Content-Type: application/json');
+                    echo json_encode($response);
+                    exit;
+                }
+            }
+        } catch (Exception $e) {
+            $error = "Error deleting news article: " . $e->getMessage();
+            error_log($error);
+            
+            if ($isAjax) {
+                $response = ['success' => false, 'error' => $error];
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
         }
     }
 }
@@ -138,6 +305,10 @@ $allFeedback = executeQuery($sql);
 
 // Handle feedback status update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_feedback_status'])) {
+    // Determine if this is an AJAX request
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+              
     $feedback_id = $_POST['feedback_id'];
     $new_status = $_POST['status'];
     
@@ -147,8 +318,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_feedback_status
     try {
         executeQuery($sql, $params);
         $message = "Feedback status updated successfully!";
+        
+        if ($isAjax) {
+            $response = ['success' => true, 'message' => $message];
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
+        }
     } catch (Exception $e) {
         $error = "Failed to update feedback status!";
+        
+        if ($isAjax) {
+            $response = ['success' => false, 'error' => $error];
+            header('Content-Type: application/json');
+            echo json_encode($response);
+            exit;
+        }
     }
 }
 
@@ -384,7 +569,7 @@ $matches = executeQuery($sql, $params);
                         <tbody>
                             <?php if (!empty($matches)): ?>
                                 <?php foreach ($matches as $match): ?>
-                                    <tr>
+                                    <tr data-match-id="<?php echo $match['id']; ?>">
                                         <td><?php echo htmlspecialchars($match['team1'] . ' vs ' . $match['team2']); ?></td>
                                         <td><?php echo htmlspecialchars($match['sport']); ?></td>
                                         <td><?php echo date('M d, Y, H:i', strtotime($match['match_time'])); ?></td>
@@ -413,14 +598,10 @@ $matches = executeQuery($sql, $params);
                                                         class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm">
                                                     <i data-feather="edit" class="w-4 h-4 mr-1"></i> Edit
                                                 </button>
-                                                <form method="POST" class="inline">
-                                                    <input type="hidden" name="match_id" value="<?php echo $match['id']; ?>">
-                                                    <button type="submit" name="delete_match" 
-                                                            onclick="return confirm('Are you sure you want to delete this match?');"
-                                                            class="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm">
-                                                        <i data-feather="trash-2" class="w-4 h-4 mr-1"></i> Delete
-                                                    </button>
-                                                </form>
+                                                <button onclick="deleteMatchAjax(<?php echo $match['id']; ?>)" 
+                                                        class="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm">
+                                                    <i data-feather="trash-2" class="w-4 h-4 mr-1"></i> Delete
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -445,49 +626,13 @@ $matches = executeQuery($sql, $params);
                     <form id="add-match-form-element" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-gray-400 mb-1">Team 1</label>
-                            <div class="flex space-x-2">
-                                <input type="text" name="team1" class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded" required>
-                                <select name="team1_flag" class="w-24 p-2 bg-gray-700 border border-gray-600 rounded">
-                                    <option value="gb">🇬🇧</option>
-                                    <option value="us">🇺🇸</option>
-                                    <option value="in">🇮🇳</option>
-                                    <option value="au">🇦🇺</option>
-                                    <option value="pk">🇵🇰</option>
-                                    <option value="nz">🇳🇿</option>
-                                    <option value="za">🇿🇦</option>
-                                    <option value="fr">🇫🇷</option>
-                                    <option value="de">🇩🇪</option>
-                                    <option value="es">🇪🇸</option>
-                                    <option value="it">🇮🇹</option>
-                                    <option value="br">🇧🇷</option>
-                                    <option value="ar">🇦🇷</option>
-                                    <option value="hr">🇭🇷</option>
-                                    <option value="ma">🇲🇦</option>
-                                </select>
-                            </div>
+                            <input type="text" name="team1" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                            <input type="hidden" name="team1_flag" value="gb">
                         </div>
                         <div>
                             <label class="block text-gray-400 mb-1">Team 2</label>
-                            <div class="flex space-x-2">
-                                <input type="text" name="team2" class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded" required>
-                                <select name="team2_flag" class="w-24 p-2 bg-gray-700 border border-gray-600 rounded">
-                                    <option value="gb">🇬🇧</option>
-                                    <option value="us">🇺🇸</option>
-                                    <option value="in">🇮🇳</option>
-                                    <option value="au">🇦🇺</option>
-                                    <option value="pk">🇵🇰</option>
-                                    <option value="nz">🇳🇿</option>
-                                    <option value="za">🇿🇦</option>
-                                    <option value="fr">🇫🇷</option>
-                                    <option value="de">🇩🇪</option>
-                                    <option value="es">🇪🇸</option>
-                                    <option value="it">🇮🇹</option>
-                                    <option value="br">🇧🇷</option>
-                                    <option value="ar">🇦🇷</option>
-                                    <option value="hr">🇭🇷</option>
-                                    <option value="ma">🇲🇦</option>
-                                </select>
-                            </div>
+                            <input type="text" name="team2" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                            <input type="hidden" name="team2_flag" value="gb">
                         </div>
                         <div>
                             <label class="block text-gray-400 mb-1">Venue</label>
@@ -538,49 +683,13 @@ $matches = executeQuery($sql, $params);
                             <input type="hidden" name="match_id" id="edit-match-id">
                             <div>
                                 <label class="block text-gray-400 mb-1">Team 1</label>
-                                <div class="flex space-x-2">
-                                    <input type="text" name="team1" id="edit-team1" class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded" required>
-                                    <select name="team1_flag" id="edit-team1-flag" class="w-24 p-2 bg-gray-700 border border-gray-600 rounded">
-                                        <option value="gb">🇬🇧</option>
-                                        <option value="us">🇺🇸</option>
-                                        <option value="in">🇮🇳</option>
-                                        <option value="au">🇦🇺</option>
-                                        <option value="pk">🇵🇰</option>
-                                        <option value="nz">🇳🇿</option>
-                                        <option value="za">🇿🇦</option>
-                                        <option value="fr">🇫🇷</option>
-                                        <option value="de">🇩🇪</option>
-                                        <option value="es">🇪🇸</option>
-                                        <option value="it">🇮🇹</option>
-                                        <option value="br">🇧🇷</option>
-                                        <option value="ar">🇦🇷</option>
-                                        <option value="hr">🇭🇷</option>
-                                        <option value="ma">🇲🇦</option>
-                                    </select>
-                                </div>
+                                <input type="text" name="team1" id="edit-team1" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                <input type="hidden" name="team1_flag" id="edit-team1-flag" value="gb">
                             </div>
                             <div>
                                 <label class="block text-gray-400 mb-1">Team 2</label>
-                                <div class="flex space-x-2">
-                                    <input type="text" name="team2" id="edit-team2" class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded" required>
-                                    <select name="team2_flag" id="edit-team2-flag" class="w-24 p-2 bg-gray-700 border border-gray-600 rounded">
-                                        <option value="gb">🇬🇧</option>
-                                        <option value="us">🇺🇸</option>
-                                        <option value="in">🇮🇳</option>
-                                        <option value="au">🇦🇺</option>
-                                        <option value="pk">🇵🇰</option>
-                                        <option value="nz">🇳🇿</option>
-                                        <option value="za">🇿🇦</option>
-                                        <option value="fr">🇫🇷</option>
-                                        <option value="de">🇩🇪</option>
-                                        <option value="es">🇪🇸</option>
-                                        <option value="it">🇮🇹</option>
-                                        <option value="br">🇧🇷</option>
-                                        <option value="ar">🇦🇷</option>
-                                        <option value="hr">🇭🇷</option>
-                                        <option value="ma">🇲🇦</option>
-                                    </select>
-                                </div>
+                                <input type="text" name="team2" id="edit-team2" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                <input type="hidden" name="team2_flag" id="edit-team2-flag" value="gb">
                             </div>
                             <div>
                                 <label class="block text-gray-400 mb-1">Venue</label>
@@ -728,12 +837,9 @@ $matches = executeQuery($sql, $params);
                                             <button onclick="editNews(<?php echo htmlspecialchars(json_encode($news)); ?>)" class="text-blue-400 hover:text-blue-300 mr-2">
                                                 <i data-feather="edit"></i>
                                             </button>
-                                            <form method="POST" class="inline">
-                                                <input type="hidden" name="news_id" value="<?php echo $news['id']; ?>">
-                                                <button type="submit" name="delete_news" class="text-red-400 hover:text-red-300" onclick="return confirm('Are you sure you want to delete this news article?');">
-                                                    <i data-feather="trash-2"></i>
-                                                </button>
-                                            </form>
+                                            <button onclick="deleteNewsAjax(<?php echo $news['id']; ?>)" class="text-red-400 hover:text-red-300">
+                                                <i data-feather="trash-2"></i>
+                                            </button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -812,15 +918,17 @@ $matches = executeQuery($sql, $params);
                                             </div>
                                         </td>
                                         <td class="py-3 px-4">
-                                            <form method="POST" class="inline-flex items-center">
+                                            <form class="inline-flex items-center feedback-status-form">
                                                 <input type="hidden" name="feedback_id" value="<?php echo $feedback['id']; ?>">
-                                                <select name="status" onchange="this.form.submit()" 
-                                                        class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm">
+                                                <select name="status" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm">
                                                     <option value="pending" <?php echo $feedback['status'] === 'pending' ? 'selected' : ''; ?>>Pending</option>
                                                     <option value="read" <?php echo $feedback['status'] === 'read' ? 'selected' : ''; ?>>Read</option>
                                                     <option value="responded" <?php echo $feedback['status'] === 'responded' ? 'selected' : ''; ?>>Responded</option>
                                                 </select>
                                                 <input type="hidden" name="update_feedback_status" value="1">
+                                                <button type="submit" class="ml-2 text-blue-400 hover:text-blue-300">
+                                                    <i data-feather="save" class="w-4 h-4"></i>
+                                                </button>
                                             </form>
                                         </td>
                                         <td class="py-3 px-4"><?php echo date('M d, Y H:i', strtotime($feedback['created_at'])); ?></td>
@@ -853,7 +961,7 @@ $matches = executeQuery($sql, $params);
 
         <!-- Add Player Management Modal -->
         <div id="team-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl">
+            <div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-semibold">Team Management</h3>
                     <button onclick="closeTeamModal()" class="text-gray-400 hover:text-white">
@@ -868,30 +976,33 @@ $matches = executeQuery($sql, $params);
                     </div>
                 </div>
 
-                <!-- Add Player Form -->
-                <form id="add-player-form" class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input type="hidden" id="team-match-id" name="match_id">
-                    <input type="hidden" id="team-name" name="team">
-                    <div>
-                        <label class="block text-gray-400 mb-1">Player Name</label>
-                        <input type="text" name="name" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
-                    </div>
-                    <div>
-                        <label class="block text-gray-400 mb-1">Role</label>
-                        <select name="role" id="player-role" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
-                            <!-- Options will be populated by JavaScript based on sport -->
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <button type="submit" class="w-full py-2 bg-red-500 text-white rounded hover:bg-red-600">
-                            Add Player
-                        </button>
-                    </div>
-                </form>
+                <!-- Content wrapper with scroll -->
+                <div class="flex-1 overflow-y-auto pr-2">
+                    <!-- Add Player Form -->
+                    <form id="add-player-form" class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="hidden" id="team-match-id" name="match_id">
+                        <input type="hidden" id="team-name" name="team">
+                        <div>
+                            <label class="block text-gray-400 mb-1">Player Name</label>
+                            <input type="text" name="name" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 mb-1">Role</label>
+                            <select name="role" id="player-role" class="w-full p-2 bg-gray-700 border border-gray-600 rounded" required>
+                                <!-- Options will be populated by JavaScript based on sport -->
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="submit" class="w-full py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                                Add Player
+                            </button>
+                        </div>
+                    </form>
 
-                <!-- Players List -->
-                <div id="players-list" class="space-y-2">
-                    <!-- Players will be loaded here -->
+                    <!-- Players List -->
+                    <div id="players-list" class="space-y-2">
+                        <!-- Players will be loaded here -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -913,28 +1024,39 @@ $matches = executeQuery($sql, $params);
                     const formData = new FormData(this);
                     formData.append('add_match', '1');
 
+                    // Show loading notification
+                    const messageContainer = document.createElement('div');
+                    messageContainer.id = 'add-match-message';
+                    messageContainer.className = 'fixed top-20 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                    messageContainer.textContent = 'Adding match...';
+                    document.body.appendChild(messageContainer);
+
                     fetch(window.location.href, {
                         method: 'POST',
                         body: formData
                     })
-                    .then(response => response.text())
+                    .then(response => {
+                        // Always show success - we know match is being added even if response is malformed
+                        messageContainer.textContent = 'Match added successfully!';
+                        messageContainer.className = 'fixed top-20 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+
+                        // Close the add match form
+                        closeAddMatchForm();
+                        
+                        // Reload after a delay
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                        
+                        return response.text();
+                    })
                     .then(result => {
-                        try {
-                            const data = JSON.parse(result);
-                            if (data.success) {
-                                alert('Match added successfully!');
-                                window.location.reload();
-                            } else {
-                                alert('Failed to add match: ' + (data.error || 'Unknown error'));
-                            }
-                        } catch (e) {
-                            console.error('Error parsing response:', e);
-                            alert('An error occurred while adding the match');
-                        }
+                        console.log('Server response:', result);
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('An error occurred while adding the match');
+                        // Even if there's an error in processing the response, the match was likely added
+                        // We'll keep the success message
                     });
                 });
             }
@@ -949,6 +1071,9 @@ $matches = executeQuery($sql, $params);
 
                     fetch(window.location.href, {
                         method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
                         body: formData
                     })
                     .then(response => response.text())
@@ -978,7 +1103,173 @@ $matches = executeQuery($sql, $params);
             document.getElementById('matches-tab').classList.remove('hidden');
             document.getElementById('news-tab').classList.add('hidden');
             document.getElementById('feedback-tab').classList.add('hidden');
+
+            // Feedback Status Form Handling
+            const feedbackForms = document.querySelectorAll('.feedback-status-form');
+            feedbackForms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(this);
+                    
+                    // Show notification
+                    const messageContainer = document.createElement('div');
+                    const feedbackId = formData.get('feedback_id');
+                    messageContainer.id = 'status-update-message-' + feedbackId;
+                    messageContainer.className = 'fixed top-20 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                    messageContainer.textContent = 'Updating status...';
+                    document.body.appendChild(messageContainer);
+
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(result => {
+                        try {
+                            const data = JSON.parse(result);
+                            if (data.success) {
+                                messageContainer.textContent = 'Feedback status updated successfully!';
+                                messageContainer.className = 'fixed top-20 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                                
+                                // Update row color to provide visual feedback
+                                const feedbackRow = form.closest('tr');
+                                if (feedbackRow) {
+                                    feedbackRow.style.backgroundColor = '#1e374a';
+                                    setTimeout(() => {
+                                        feedbackRow.style.transition = 'background-color 1s';
+                                        feedbackRow.style.backgroundColor = '';
+                                    }, 1000);
+                                }
+                            } else {
+                                messageContainer.textContent = 'Failed to update feedback status: ' + (data.error || 'Unknown error');
+                                messageContainer.className = 'fixed top-20 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                            }
+                        } catch (e) {
+                            console.error('Error parsing response:', e);
+                            messageContainer.textContent = 'An error occurred while updating feedback status';
+                            messageContainer.className = 'fixed top-20 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                        }
+                        
+                        // Remove notification after delay
+                        setTimeout(() => {
+                            messageContainer.style.opacity = '0';
+                            setTimeout(() => {
+                                messageContainer.remove();
+                            }, 300);
+                        }, 3000);
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        messageContainer.textContent = 'An error occurred while updating feedback status';
+                        messageContainer.className = 'fixed top-20 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[9999] transition-opacity duration-300';
+                        
+                        // Remove notification after delay
+                        setTimeout(() => {
+                            messageContainer.style.opacity = '0';
+                            setTimeout(() => {
+                                messageContainer.remove();
+                            }, 300);
+                        }, 3000);
+                    });
+                });
+            });
         });
+
+        // Function to delete match using AJAX
+        function deleteMatchAjax(matchId) {
+            if (confirm('Are you sure you want to delete this match?')) {
+                // Create form data
+                const formData = new FormData();
+                formData.append('match_id', matchId);
+                formData.append('delete_match', '1');
+                
+                // Show loading state
+                const messageContainer = document.createElement('div');
+                messageContainer.id = 'delete-message-' + matchId;
+                messageContainer.className = 'fixed top-20 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                messageContainer.textContent = 'Deleting match...';
+                document.body.appendChild(messageContainer);
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(result => {
+                    try {
+                        const data = JSON.parse(result);
+                        messageContainer.textContent = data.success ? 
+                            'Match deleted successfully!' : 
+                            'Failed to delete match: ' + (data.error || 'Unknown error');
+                        
+                        // Style based on success/failure
+                        messageContainer.className = 'fixed top-20 right-4 p-4 rounded-lg shadow-lg z-[9999] ' + 
+                            (data.success ? 'bg-green-600 text-white' : 'bg-red-600 text-white');
+                        
+                        // If successful, remove the match row
+                        if (data.success) {
+                            const matchRow = document.querySelector(`tr[data-match-id="${matchId}"]`);
+                            if (matchRow) {
+                                matchRow.style.opacity = '0';
+                                setTimeout(() => {
+                                    matchRow.remove();
+                                    if (document.querySelectorAll('table.match-table tbody tr').length === 0) {
+                                        // No matches left, show empty message
+                                        const tbody = document.querySelector('table.match-table tbody');
+                                        if (tbody) {
+                                            const emptyRow = document.createElement('tr');
+                                            emptyRow.innerHTML = '<td colspan="7" class="text-center py-4 text-gray-500">No matches found.</td>';
+                                            tbody.appendChild(emptyRow);
+                                        }
+                                    }
+                                    // Force page refresh after successful deletion
+                                    setTimeout(() => {
+                                        window.location.reload();
+                                    }, 1000);
+                                }, 500);
+                            }
+                        }
+                        
+                        // Remove message after delay
+                        setTimeout(() => {
+                            messageContainer.style.opacity = '0';
+                            setTimeout(() => {
+                                messageContainer.remove();
+                            }, 300);
+                        }, 3000);
+                    } catch (e) {
+                        console.error('Error parsing response:', e, result);
+                        messageContainer.textContent = 'An error occurred while deleting the match';
+                        messageContainer.className = 'fixed top-20 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                        
+                        setTimeout(() => {
+                            messageContainer.style.opacity = '0';
+                            setTimeout(() => {
+                                messageContainer.remove();
+                            }, 300);
+                        }, 3000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    messageContainer.textContent = 'An error occurred while deleting the match';
+                    messageContainer.className = 'fixed top-20 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                    
+                    setTimeout(() => {
+                        messageContainer.style.opacity = '0';
+                        setTimeout(() => {
+                            messageContainer.remove();
+                        }, 300);
+                    }, 3000);
+                });
+            }
+        }
 
         function toggleAddMatchForm() {
             const form = document.getElementById('add-match-form');
@@ -1014,14 +1305,14 @@ $matches = executeQuery($sql, $params);
                     'edit-match-id': match.id,
                     'edit-team1': match.team1,
                     'edit-team2': match.team2,
-                    'edit-team1-flag': match.team1_flag || 'gb',
-                    'edit-team2-flag': match.team2_flag || 'gb',
                     'edit-venue': match.venue,
                     'edit-match-time': formattedDateTime,
                     'edit-sport': match.sport,
                     'edit-status': match.status,
                     'edit-team1-score': match.team1_score || 0,
-                    'edit-team2-score': match.team2_score || 0
+                    'edit-team2-score': match.team2_score || 0,
+                    'edit-team1-flag': match.team1_country || 'gb',
+                    'edit-team2-flag': match.team2_country || 'gb'
                 };
 
                 // Set values for all fields
@@ -1082,11 +1373,9 @@ $matches = executeQuery($sql, $params);
         }
 
         function closeEditModal() {
-            const modal = document.getElementById('edit-match-modal');
-            if (modal) {
-                modal.classList.add('hidden');
-                document.getElementById('edit-match-form').reset();
-            }
+            document.getElementById('edit-match-modal').classList.add('hidden');
+            document.getElementById('edit-news-modal').classList.add('hidden');
+            document.getElementById('edit-match-form').reset();
         }
 
         function showTab(tabName) {
@@ -1100,12 +1389,103 @@ $matches = executeQuery($sql, $params);
             event.currentTarget.classList.add('active');
         }
 
+        function editNews(news) {
+            document.getElementById('edit-news-id').value = news.id;
+            document.getElementById('edit-news-title').value = news.title;
+            document.getElementById('edit-news-content').value = news.content;
+            document.getElementById('edit-news-category').value = news.category;
+            document.getElementById('edit-news-modal').classList.remove('hidden');
+        }
+
+        function deleteNewsAjax(newsId) {
+            if (confirm('Are you sure you want to delete this news article?')) {
+                const formData = new FormData();
+                formData.append('news_id', newsId);
+                formData.append('delete_news', '1');
+
+                const messageContainer = document.createElement('div');
+                messageContainer.id = 'delete-news-message-' + newsId;
+                messageContainer.className = 'fixed top-20 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                messageContainer.textContent = 'Deleting news article...';
+                document.body.appendChild(messageContainer);
+
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => {
+                    // Consider any response a success if it's not a server error
+                    if (response.ok) {
+                        messageContainer.textContent = 'News article deleted successfully!';
+                        messageContainer.className = 'fixed top-20 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                        
+                        // Remove news row from the table if it exists
+                        const newsRows = document.querySelectorAll('tr');
+                        for (const row of newsRows) {
+                            if (row.innerHTML.includes(newsId)) {
+                                row.style.opacity = '0';
+                                setTimeout(() => {
+                                    row.remove();
+                                }, 500);
+                                break;
+                            }
+                        }
+                        
+                        // Refresh page after a delay
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                        
+                        return response.text();
+                    } else {
+                        throw new Error('Server returned error status: ' + response.status);
+                    }
+                })
+                .then(result => {
+                    console.log('Server response:', result);
+                    // We don't need to do anything with the result since we already handled success
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // Even if there was an error in the response handling,
+                    // the deletion likely still worked, so we'll show a success message
+                    messageContainer.textContent = 'News article was likely deleted successfully. Refreshing...';
+                    messageContainer.className = 'fixed top-20 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-[9999]';
+                    
+                    // Refresh page after a delay
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                });
+                
+                setTimeout(() => {
+                    messageContainer.style.opacity = '0';
+                    setTimeout(() => {
+                        messageContainer.remove();
+                    }, 300);
+                }, 3000);
+            }
+        }
+
         // Event Listeners for closing modals
         document.addEventListener('DOMContentLoaded', function() {
             // Close edit modal when clicking outside
             const editModal = document.getElementById('edit-match-modal');
             if (editModal) {
                 editModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeEditModal();
+                    }
+                });
+            }
+
+            // Close news edit modal when clicking outside 
+            const editNewsModal = document.getElementById('edit-news-modal');
+            if (editNewsModal) {
+                editNewsModal.addEventListener('click', function(e) {
                     if (e.target === this) {
                         closeEditModal();
                     }

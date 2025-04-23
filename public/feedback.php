@@ -1,164 +1,134 @@
 <?php
+session_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/email.php';
+require_once __DIR__ . '/../backend/feedback.php';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Debug information
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    error_log("POST data received: " . print_r($_POST, true));
-}
+$name = '';
+$email = '';
+$subject = '';
+$message = '';
+$errors = [];
+$success = false;
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_feedback'])) {
-    try {
-        // Validate and sanitize input
-        $name = filter_var(trim($_POST['name']), FILTER_SANITIZE_STRING);
-        $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-        $subject = filter_var(trim($_POST['subject']), FILTER_SANITIZE_STRING);
-        $message = filter_var(trim($_POST['message']), FILTER_SANITIZE_STRING);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get form data
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $subject = trim($_POST['subject'] ?? '');
+    $message = trim($_POST['message'] ?? '');
+    
+    error_log("Feedback form submitted - Name: $name, Email: $email, Subject: $subject");
+    
+    // Validate inputs
+    if (empty($name)) {
+        $errors[] = "Name is required";
+    }
+    
+    if (empty($email)) {
+        $errors[] = "Email is required";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Invalid email format";
+    }
+    
+    if (empty($subject)) {
+        $errors[] = "Subject is required";
+    }
+    
+    if (empty($message)) {
+        $errors[] = "Message is required";
+    }
 
-        // Debug log
-        error_log("Processed input - Name: $name, Email: $email, Subject: $subject");
-
-        // Validate inputs
-        if (empty($name) || empty($email) || empty($subject) || empty($message)) {
-            throw new Exception("All fields are required.");
-        }
-
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Please enter a valid email address.");
-        }
-
-        // Insert into database
-        $sql = "INSERT INTO feedback (name, email, subject, message) VALUES (:name, :email, :subject, :message)";
-        $params = [
-            ':name' => $name,
-            ':email' => $email,
-            ':subject' => $subject,
-            ':message' => $message
-        ];
-        
-        // Debug log
-        error_log("Executing SQL: $sql with params: " . print_r($params, true));
-        
-        $result = executeQuery($sql, $params);
-        
-        if ($result) {
-            // Debug log
-            error_log("Feedback inserted successfully. Redirecting to thank you page.");
+    // If validation passes, use the backend processFeedback function
+    if (empty($errors)) {
+        try {
+            $result = processFeedback($name, $email, $subject, $message);
             
-            // Redirect to thank you page
-            header("Location: index.php?page=thank-you");
-            exit();
-        } else {
-            throw new Exception("Failed to insert feedback into database.");
+            if ($result['success']) {
+                // Store success message in session
+                $_SESSION['success_message'] = $result['message'];
+                
+                // Redirect to thank you page
+                header("Location: ?page=thank-you");
+                exit();
+            } else {
+                $errors[] = $result['message'] ?? "Failed to save your feedback. Please try again.";
+                error_log("Feedback processing failed: " . ($result['message'] ?? 'Unknown error'));
+            }
+        } catch (Exception $e) {
+            error_log("General error in feedback processing: " . $e->getMessage());
+            error_log("Error trace: " . $e->getTraceAsString());
+            $errors[] = "An error occurred while processing your feedback. Please try again later.";
         }
-    } catch (Exception $e) {
-        $error_message = $e->getMessage();
-        error_log("Feedback submission error: " . $e->getMessage());
     }
 }
 
-// Set the page variable for the header
-$page = 'feedback';
-
-// Include the header
-include __DIR__ . '/header.php';
+// Include header
+include 'header.php';
 ?>
 
-<main class="container mx-auto px-4 py-8">
+<div class="container mx-auto px-4 py-8">
     <div class="max-w-2xl mx-auto">
         <h1 class="text-3xl font-bold mb-8 text-center">Send us your Feedback</h1>
         
-        <div id="success-message" class="hidden bg-green-500 text-white p-4 rounded-lg mb-6"></div>
-        <div id="error-message" class="hidden bg-red-600 text-white p-4 rounded-lg mb-6"></div>
+        <?php if (!empty($errors)): ?>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6">
+                <strong class="font-bold">Please correct the following:</strong>
+                <ul class="list-disc list-inside mt-2">
+                    <?php foreach ($errors as $error): ?>
+                        <li><?php echo htmlspecialchars($error); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (isset($_SESSION['success_message'])): ?>
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6">
+                <?php echo htmlspecialchars($_SESSION['success_message']); ?>
+            </div>
+            <?php unset($_SESSION['success_message']); ?>
+        <?php endif; ?>
 
-        <div class="bg-gray-900 p-8 rounded-lg shadow-lg">
-            <form id="feedbackForm" class="space-y-6">
+        <div class="bg-gray-900 p-6 rounded-lg shadow-lg">
+            <form method="POST" action="?page=feedback" class="space-y-6">
                 <div>
                     <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Name</label>
                     <input type="text" id="name" name="name" 
                            class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-white"
-                           required>
+                           value="<?php echo htmlspecialchars($name); ?>" required>
                 </div>
 
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
                     <input type="email" id="email" name="email" 
                            class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-white"
-                           required>
+                           value="<?php echo htmlspecialchars($email); ?>" required>
                 </div>
-
+                
                 <div>
                     <label for="subject" class="block text-sm font-medium text-gray-300 mb-2">Subject</label>
                     <input type="text" id="subject" name="subject" 
                            class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-white"
-                           required>
+                           value="<?php echo htmlspecialchars($subject); ?>" required>
                 </div>
 
                 <div>
                     <label for="message" class="block text-sm font-medium text-gray-300 mb-2">Message</label>
-                    <textarea id="message" name="message" rows="4" 
+                    <textarea id="message" name="message" rows="5" 
                               class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-white"
-                              required></textarea>
+                              required><?php echo htmlspecialchars($message); ?></textarea>
                 </div>
 
-                <div>
-                    <button type="submit" 
-                            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors">
-                        Submit Feedback
-                    </button>
-                </div>
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200">
+                    Submit Feedback
+                </button>
             </form>
         </div>
     </div>
-</main>
+</div>
 
-<script>
-document.getElementById('feedbackForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const successDiv = document.getElementById('success-message');
-    const errorDiv = document.getElementById('error-message');
-    
-    // Hide any previous messages
-    successDiv.classList.add('hidden');
-    errorDiv.classList.add('hidden');
-    
-    // Show loading state
-    const submitButton = this.querySelector('button[type="submit"]');
-    const originalText = submitButton.textContent;
-    submitButton.textContent = 'Sending...';
-    submitButton.disabled = true;
-    
-    fetch('../backend/feedback.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            successDiv.textContent = data.message;
-            successDiv.classList.remove('hidden');
-            this.reset();
-        } else {
-            errorDiv.textContent = data.message;
-            errorDiv.classList.remove('hidden');
-        }
-    })
-    .catch(error => {
-        errorDiv.textContent = 'An error occurred. Please try again.';
-        errorDiv.classList.remove('hidden');
-    })
-    .finally(() => {
-        // Reset button state
-        submitButton.textContent = originalText;
-        submitButton.disabled = false;
-    });
-});
-</script>
-
-<?php include __DIR__ . '/footer.php'; ?> 
+<?php include 'footer.php'; ?>

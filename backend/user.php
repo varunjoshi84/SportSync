@@ -1,4 +1,14 @@
+// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/user.php
 <?php
+/**
+ * User Management Functions
+ * 
+ * This file contains functions for managing user accounts including:
+ * - User registration
+ * - User retrieval
+ * - Profile management
+ */
+
 if (!function_exists('getUserById')) {
     function getUserById($id) {
         $db = getDB();
@@ -23,12 +33,15 @@ if (!function_exists('registerUser')) {
                 return false; // Email already exists
             }
             
+            // Hash password securely
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            
             // Insert new user
             $sql = "INSERT INTO users (username, email, password, created_at) VALUES (:username, :email, :password, NOW())";
             $params = [
                 ':username' => $username,
                 ':email' => $email,
-                ':password' => md5($password) // Note: Use proper password hashing in production
+                ':password' => $hashedPassword
             ];
             
             executeQuery($sql, $params);

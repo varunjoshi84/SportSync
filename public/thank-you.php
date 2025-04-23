@@ -13,7 +13,7 @@ require_once __DIR__ . '/../backend/db.php';
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="bg-black text-white min-h-screen">
-    <?php include 'header.php'; ?>
+    <?php include __DIR__ . '/header.php'; ?>
 
     <main class="container mx-auto px-4 py-16">
         <div class="max-w-2xl mx-auto text-center">
@@ -47,6 +47,6 @@ require_once __DIR__ . '/../backend/db.php';
         </div>
     </main>
 
-    <?php include 'footer.php'; ?>
+    <?php include __DIR__ . '/footer.php'; ?>
 </body>
 </html> 

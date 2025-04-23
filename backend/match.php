@@ -1,4 +1,29 @@
+// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/match.php
 <?php
+/**
+ * Match Management Module
+ * 
+ * This file contains functions for managing sports matches in the SportSync system.
+ * It handles CRUD operations for matches, favorites, and provides API endpoints
+ * for retrieving match data filtered by various criteria.
+ * 
+ * Key Features:
+ * - Match table creation and management
+ * - Match filtering by sport type (cricket, football)
+ * - Match status management (upcoming, live, completed)
+ * - Score and statistics updates
+ * - User favorites functionality
+ * - API request handling for match data
+ * 
+ * @author SportSync Development Team
+ * @version 1.0
+ */
+
+ob_start();
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/error_log.txt');
+
 // Prevent multiple inclusions
 if (!defined('MATCH_PHP_INCLUDED')) {
     define('MATCH_PHP_INCLUDED', true);
@@ -9,6 +34,22 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     require_once __DIR__ . '/auth.php';
     require_once __DIR__ . '/user.php';
     
+    // Create favorites table function
+    if (!function_exists('createFavoritesTable')) {
+        function createFavoritesTable() {
+            $sql = "CREATE TABLE IF NOT EXISTS favorites (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                match_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_favorite (user_id, match_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+            )";
+            return executeQuery($sql);
+        }
+    }
+
     // Define functions only if they don't exist
     if (!function_exists('getLiveMatches')) {
         function getLiveMatches($sport = null) {
@@ -167,12 +208,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )";
             return executeQuery($sql);
-        }
-    }
-    
-    if (!function_exists('initializeTables')) {
-        function initializeTables() {
-            createMatchTable();
         }
     }
     
@@ -374,7 +409,17 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     }
 
     // Initialize tables when this file is included
-    initializeTables();
+    if (function_exists('initializeTables')) {
+        initializeTables();
+    } else {
+        // Create necessary tables if initializeTables doesn't exist
+        if (function_exists('createMatchTable')) {
+            createMatchTable();
+        }
+        if (function_exists('createFavoritesTable')) {
+            createFavoritesTable();
+        }
+    }
 
     // Handle API requests if this file is accessed directly
     if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
@@ -383,85 +428,174 @@ if (!defined('MATCH_PHP_INCLUDED')) {
 
     // Handle form submissions
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        header('Content-Type: application/json');
-        $response = ['success' => false];
+        try {
+            // Only handle specific form submissions, not login/signup
+            if (isset($_POST['add_match']) || isset($_POST['update_match']) || isset($_POST['delete_match']) || 
+                isset($_POST['add_to_favorites']) || isset($_POST['remove_from_favorites'])) {
+                
+                header('Content-Type: application/json');
+                $response = ['success' => false];
 
-        if (isset($_POST['add_match'])) {
-            // Handle add match
-            $team1 = $_POST['team1'];
-            $team2 = $_POST['team2'];
-            $venue = $_POST['venue'];
-            $match_time = $_POST['match_time'];
-            $sport = $_POST['sport'];
-            $status = $_POST['status'] ?? 'upcoming';
+                if (isset($_POST['add_match'])) {
+                    // Handle add match
+                    $team1 = $_POST['team1'];
+                    $team2 = $_POST['team2'];
+                    $venue = $_POST['venue'];
+                    $match_time = $_POST['match_time'];
+                    $sport = $_POST['sport'];
+                    $status = $_POST['status'] ?? 'upcoming';
 
-            try {
-                if (addMatch($team1, $team2, $venue, $match_time, $sport, $status)) {
-                    $response = ['success' => true, 'message' => 'Match added successfully'];
-                } else {
-                    $response = ['success' => false, 'error' => 'Failed to add match'];
+                    try {
+                        if (addMatch($team1, $team2, $venue, $match_time, $sport, $status)) {
+                            $response = ['success' => true, 'message' => 'Match added successfully'];
+                        } else {
+                            $response = ['success' => false, 'error' => 'Failed to add match'];
+                        }
+                    } catch (Exception $e) {
+                        $response = ['success' => false, 'error' => $e->getMessage()];
+                    }
                 }
-            } catch (Exception $e) {
-                $response = ['success' => false, 'error' => $e->getMessage()];
+                elseif (isset($_POST['update_match_details'])) {
+                    // Handle update match
+                    try {
+                        $match_id = $_POST['match_id'];
+                        $data = [
+                            'team1' => $_POST['team1'],
+                            'team2' => $_POST['team2'],
+                            'venue' => $_POST['venue'],
+                            'match_time' => $_POST['match_time'],
+                            'sport' => $_POST['sport'],
+                            'status' => $_POST['status'],
+                            'team1_score' => $_POST['team1_score'],
+                            'team2_score' => $_POST['team2_score']
+                        ];
+
+                        // Add sport-specific fields
+                        if ($_POST['sport'] === 'cricket') {
+                            $data['team1_wickets'] = $_POST['team1_wickets'];
+                            $data['team2_wickets'] = $_POST['team2_wickets'];
+                            $data['team1_overs'] = $_POST['team1_overs'];
+                            $data['team2_overs'] = $_POST['team2_overs'];
+                        }
+                        // Add football-specific fields
+                        if ($_POST['sport'] === 'football') {
+                            $data['team1_shots'] = $_POST['team1_shots'];
+                            $data['team2_shots'] = $_POST['team2_shots'];
+                            $data['team1_possession'] = $_POST['team1_possession'];
+                            $data['team2_possession'] = $_POST['team2_possession'];
+                        }
+
+                        if (updateMatch($match_id, $data)) {
+                            $response = ['success' => true, 'message' => 'Match updated successfully'];
+                        } else {
+                            $response = ['success' => false, 'error' => 'Failed to update match'];
+                        }
+                    } catch (Exception $e) {
+                        $response = ['success' => false, 'error' => $e->getMessage()];
+                    }
+                }
+                elseif (isset($_POST['delete_match'])) {
+                    // Handle delete match
+                    try {
+                        $match_id = $_POST['match_id'];
+                        
+                        if (!$match_id) {
+                            $response = ['success' => false, 'error' => 'Match ID is required'];
+                        } else {
+                            // Check if the match exists first
+                            $match = getMatchById($match_id);
+                            
+                            if (!$match) {
+                                $response = ['success' => false, 'error' => 'Match not found'];
+                            } else {
+                                $result = deleteMatch($match_id);
+                                
+                                if ($result !== false) {
+                                    $response = ['success' => true, 'message' => 'Match deleted successfully'];
+                                } else {
+                                    $response = ['success' => false, 'error' => 'Failed to delete match'];
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Error deleting match: " . $e->getMessage());
+                        $response = ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
+                    }
+                    
+                    // Return the response
+                    echo json_encode($response);
+                    exit;
+                }
+                elseif (isset($_POST['toggle_favorite'])) {
+                    header('Content-Type: application/json');
+                    if (ob_get_length()) ob_clean();
+                    
+                    // Log the request for debugging
+                    error_log('toggle_favorite POST: ' . print_r($_POST, true));
+                    
+                    // Get parameters
+                    $user_id = $_POST['user_id'] ?? null;
+                    $match_id = $_POST['match_id'] ?? null;
+                    $is_favorite = isset($_POST['is_favorite']) && $_POST['is_favorite'] === 'true';
+
+                    // Validate required parameters
+                    if (!$user_id || !$match_id) {
+                        $response = ['success' => false, 'error' => 'Missing user_id or match_id'];
+                        echo json_encode($response);
+                        exit;
+                    }
+
+                    try {
+                        if ($is_favorite) {
+                            $result = removeFromFavorites($user_id, $match_id);
+                            error_log("Removing from favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
+                        } else {
+                            $result = addToFavorites($user_id, $match_id);
+                            error_log("Adding to favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
+                        }
+                        
+                        // Always send a definitive response
+                        $response = [
+                            'success' => ($result !== false), 
+                            'is_favorite' => !$is_favorite,
+                            'action' => $is_favorite ? 'removed' : 'added'
+                        ];
+                        
+                        // Make sure we have output, even if result is false
+                        if ($result === false) {
+                            $response['error'] = 'Database operation failed';
+                        }
+                    } catch (Exception $e) {
+                        error_log("Error in toggle_favorite: " . $e->getMessage());
+                        $response = ['success' => false, 'error' => $e->getMessage()];
+                    }
+                    
+                    // Add additional error handling to guarantee output
+                    if (empty($response)) {
+                        $response = ['success' => false, 'error' => 'Unknown server error occurred'];
+                    }
+                    
+                    // Ensure we're sending valid JSON with proper headers
+                    if (!headers_sent()) {
+                        header('Content-Type: application/json');
+                    }
+                    echo json_encode($response);
+                    exit;
+                }
+
+                // Always return a JSON response if no handler matched
+                if (!headers_sent()) {
+                    header('Content-Type: application/json');
+                }
+                if (ob_get_length()) ob_clean();
+                echo json_encode(['success' => false, 'error' => 'Invalid request or missing parameters.']);
+                exit;
             }
-        } 
-        elseif (isset($_POST['update_match_details'])) {
-            // Handle update match
-            try {
-                $match_id = $_POST['match_id'];
-                $data = [
-                    'team1' => $_POST['team1'],
-                    'team2' => $_POST['team2'],
-                    'venue' => $_POST['venue'],
-                    'match_time' => $_POST['match_time'],
-                    'sport' => $_POST['sport'],
-                    'status' => $_POST['status'],
-                    'team1_score' => $_POST['team1_score'],
-                    'team2_score' => $_POST['team2_score']
-                ];
-
-                // Add sport-specific fields
-                if ($_POST['sport'] === 'cricket') {
-                    $data['team1_wickets'] = $_POST['team1_wickets'];
-                    $data['team2_wickets'] = $_POST['team2_wickets'];
-                    $data['team1_overs'] = $_POST['team1_overs'];
-                    $data['team2_overs'] = $_POST['team2_overs'];
-                }
-                elseif ($_POST['sport'] === 'football') {
-                    $data['team1_shots'] = $_POST['team1_shots'];
-                    $data['team2_shots'] = $_POST['team2_shots'];
-                    $data['team1_possession'] = $_POST['team1_possession'];
-                    $data['team2_possession'] = $_POST['team2_possession'];
-                }
-
-                if (updateMatch($match_id, $data)) {
-                    $response = ['success' => true, 'message' => 'Match updated successfully'];
-                } else {
-                    $response = ['success' => false, 'error' => 'Failed to update match'];
-                }
-            } catch (Exception $e) {
-                $response = ['success' => false, 'error' => $e->getMessage()];
-            }
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'An unexpected error occurred: ' . $e->getMessage()]);
+            exit;
         }
-        elseif (isset($_POST['toggle_favorite'])) {
-            $user_id = $_POST['user_id'];
-            $match_id = $_POST['match_id'];
-            $is_favorite = $_POST['is_favorite'] === 'true';
-
-            try {
-                if ($is_favorite) {
-                    $result = removeFromFavorites($user_id, $match_id);
-                } else {
-                    $result = addToFavorites($user_id, $match_id);
-                }
-                $response = ['success' => true, 'is_favorite' => !$is_favorite];
-            } catch (Exception $e) {
-                $response = ['success' => false, 'error' => $e->getMessage()];
-            }
-        }
-
-        echo json_encode($response);
-        exit;
     }
 }
 ?>

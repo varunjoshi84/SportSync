@@ -2,72 +2,158 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/email.php';
 
-header('Content-Type: application/json');
-
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
+// Define this constant at the beginning so included files can check it
+define('FEEDBACK_INCLUDED', true);
+
+// Check if this is a direct API call or included from another file
+// We determine this by checking the script name - if it's this file, then it's a direct API call
+$isApi = (basename($_SERVER['SCRIPT_NAME']) === basename(__FILE__));
+
+if ($isApi) {
+    header('Content-Type: application/json');
+    
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+        exit;
+    }
 }
 
-try {
-    // Validate and sanitize input
-    $name = filter_var(trim($_POST['name'] ?? ''), FILTER_SANITIZE_STRING);
-    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
-    $subject = filter_var(trim($_POST['subject'] ?? ''), FILTER_SANITIZE_STRING);
-    $message = filter_var(trim($_POST['message'] ?? ''), FILTER_SANITIZE_STRING);
+/**
+ * Process feedback submission
+ * @param string $name The name of the person submitting feedback
+ * @param string $email The email of the person submitting feedback
+ * @param string $subject The subject of the feedback
+ * @param string $message The feedback message
+ * @return array Result array with success status and message
+ */
+function processFeedback($name, $email, $subject, $message) {
+    try {
+        // Validate required fields
+        if (empty($name) || empty($email) || empty($subject) || empty($message)) {
+            throw new Exception("All fields are required.");
+        }
 
-    // Debug log
-    error_log("Processing feedback submission - Name: $name, Email: $email, Subject: $subject");
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new Exception("Please enter a valid email address.");
+        }
 
-    // Validate required fields
-    if (empty($name) || empty($email) || empty($subject) || empty($message)) {
-        throw new Exception("All fields are required.");
-    }
+        // Get database connection
+        $db = getDB();
+        
+        // Ensure the feedback table exists with the correct structure
+        ensureFeedbackTableExists($db);
+        
+        // Insert into database
+        $sql = "INSERT INTO feedback (name, email, subject, message, status) VALUES (:name, :email, :subject, :message, :status)";
+        $params = [
+            ':name' => $name,
+            ':email' => $email,
+            ':subject' => $subject,
+            ':message' => $message,
+            ':status' => 'pending'
+        ];
+        
+        // Debug log
+        error_log("Executing SQL: $sql with params: " . print_r($params, true));
+        
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            error_log("Failed to prepare statement: " . json_encode($db->errorInfo()));
+            throw new Exception("Database error: Failed to prepare statement");
+        }
+        
+        $result = $stmt->execute($params);
+        
+        if (!$result) {
+            error_log("Failed to execute statement: " . json_encode($stmt->errorInfo()));
+            throw new Exception("Database error: Failed to save feedback");
+        }
+        
+        // Send thank you email, but don't fail if email sending fails
+        try {
+            $emailSent = sendFeedbackEmail($name, $email, $subject, $message);
+            error_log("Feedback email sending result: " . ($emailSent ? "Success" : "Failed"));
+        } catch (Exception $emailErr) {
+            error_log("Email error ignored: " . $emailErr->getMessage());
+            $emailSent = false;
+        }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        throw new Exception("Please enter a valid email address.");
-    }
-
-    // Insert into database
-    $sql = "INSERT INTO feedback (name, email, subject, message) VALUES (:name, :email, :subject, :message)";
-    $params = [
-        ':name' => $name,
-        ':email' => $email,
-        ':subject' => $subject,
-        ':message' => $message
-    ];
-    
-    // Debug log
-    error_log("Executing SQL: $sql with params: " . print_r($params, true));
-    
-    $result = executeQuery($sql, $params);
-    
-    if ($result) {
-        // Send thank you email
-        $emailSent = sendFeedbackEmail($name, $email, $message);
-        error_log("Feedback email sending result: " . ($emailSent ? "Success" : "Failed"));
-
-        echo json_encode([
+        return [
             'success' => true,
             'message' => $emailSent 
                 ? 'Thank you for your feedback! We have sent a confirmation email to your inbox.'
                 : 'Thank you for your feedback! However, we could not send the confirmation email.',
-            'redirect' => 'index.php?page=thank-you'
-        ]);
-    } else {
-        throw new Exception("Failed to insert feedback into database.");
+            'redirect' => '?page=thank-you'
+        ];
+    } catch (Exception $e) {
+        error_log("Feedback submission error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+        return [
+            'success' => false,
+            'message' => "An error occurred while processing your feedback. Please try again later. " . $e->getMessage()
+        ];
     }
-} catch (Exception $e) {
-    error_log("Feedback submission error: " . $e->getMessage());
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ]);
 }
-?> 
+
+/**
+ * Ensure the feedback table exists with proper structure
+ * @param PDO $db Database connection
+ */
+function ensureFeedbackTableExists($db) {
+    try {
+        // Check if table exists
+        $result = $db->query("SHOW TABLES LIKE 'feedback'");
+        $tableExists = ($result->rowCount() > 0);
+        
+        if (!$tableExists) {
+            error_log("Feedback table does not exist, creating it");
+            createFeedbackTable();
+        } else {
+            // Check if table has the correct structure
+            $result = $db->query("DESCRIBE feedback");
+            $columns = $result->fetchAll(PDO::FETCH_COLUMN);
+            
+            // Check if 'subject' and 'status' columns exist
+            if (!in_array('subject', $columns) || !in_array('status', $columns)) {
+                error_log("Feedback table missing required columns, altering table");
+                
+                // Add missing columns
+                if (!in_array('subject', $columns)) {
+                    $db->exec("ALTER TABLE feedback ADD COLUMN subject VARCHAR(200) NOT NULL DEFAULT 'General Feedback' AFTER email");
+                }
+                
+                if (!in_array('status', $columns)) {
+                    $db->exec("ALTER TABLE feedback ADD COLUMN status VARCHAR(20) DEFAULT 'pending' AFTER message");
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error ensuring feedback table: " . $e->getMessage());
+        throw new Exception("Database structure error: " . $e->getMessage());
+    }
+}
+
+// Handle API requests directly
+if ($isApi && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = filter_var(trim($_POST['name'] ?? ''), FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
+    $subject = filter_var(trim($_POST['subject'] ?? ''), FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    $message = filter_var(trim($_POST['message'] ?? ''), FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    
+    // Debug log
+    error_log("Processing feedback submission - Name: $name, Email: $email, Subject: $subject");
+    
+    $result = processFeedback($name, $email, $subject, $message);
+    
+    if (!$result['success']) {
+        http_response_code(400);
+    }
+    
+    echo json_encode($result);
+    exit;
+}
+?>
