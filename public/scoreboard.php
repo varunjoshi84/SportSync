@@ -78,6 +78,19 @@ include __DIR__ . '/header.php';
                         <div class="text-4xl font-bold text-white"><?php echo $match['team2_score']; ?></div>
                     </div>
                 </div>
+
+                <?php if ($match['status'] === 'completed'): ?>
+                <div class="bg-gray-800 rounded-lg p-4 text-center mb-4">
+                    <h3 class="text-xl font-bold 
+                        <?php echo $match['winner'] === 'Draw' ? 'text-yellow-500' : 'text-green-500'; ?>">
+                        <?php if ($match['winner'] === 'Draw'): ?>
+                            Match ended in a Draw
+                        <?php else: ?>
+                            <?php echo htmlspecialchars($match['winner']); ?> Won
+                        <?php endif; ?>
+                    </h3>
+                </div>
+                <?php endif; ?>
             </div>
 
             <?php if ($match['sport'] === 'cricket'): ?>

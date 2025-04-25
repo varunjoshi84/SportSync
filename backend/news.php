@@ -1,13 +1,5 @@
 
 <?php
-/**
- * News Management Functions
- * 
- * This file contains functions for managing news articles including:
- * - Newsletter subscription
- * - Retrieving news articles
- * - Adding, updating, and deleting news content
- */
 
 require_once __DIR__ . '/db.php';
 

@@ -1,4 +1,3 @@
-// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/backend/player.php
 <?php
 /**
  * Player Management Functions

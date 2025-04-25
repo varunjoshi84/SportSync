@@ -202,6 +202,7 @@ if (!function_exists('createMatchTable')) {
             match_time DATETIME NOT NULL,
             sport VARCHAR(50) NOT NULL,
             status VARCHAR(20) DEFAULT 'upcoming',
+            winner VARCHAR(100) DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )";
         return executeQuery($sql);
@@ -290,6 +291,50 @@ if (!function_exists('createSubscriptionsTable')) {
     }
 }
 
+if (!function_exists('addWinnerColumnToMatchesTable')) {
+    /**
+     * Adds the winner column to the matches table if it doesn't exist
+     * 
+     * @return boolean True if column added or already exists, false otherwise
+     */
+    function addWinnerColumnToMatchesTable() {
+        try {
+            $db = getDB();
+            
+            // Check if column exists
+            $result = $db->query("SHOW COLUMNS FROM matches LIKE 'winner'");
+            $columnExists = $result->rowCount() > 0;
+            
+            if (!$columnExists) {
+                // Add column if it doesn't exist
+                $sql = "ALTER TABLE matches ADD COLUMN winner VARCHAR(100) DEFAULT NULL AFTER status";
+                $db->exec($sql);
+                
+                // Update existing completed matches based on scores
+                $sql = "UPDATE matches 
+                        SET winner = 
+                            CASE 
+                                WHEN team1_score > team2_score THEN team1
+                                WHEN team2_score > team1_score THEN team2
+                                WHEN team1_score = team2_score AND status = 'completed' THEN 'Draw'
+                                ELSE NULL
+                            END
+                        WHERE status = 'completed'";
+                $db->exec($sql);
+                
+                error_log("Winner column added to matches table and existing records updated");
+            } else {
+                error_log("Winner column already exists in matches table");
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Error adding winner column: " . $e->getMessage());
+            return false;
+        }
+    }
+}
+
 if (!function_exists('initializeTables')) {
     /**
      * Initializes all database tables
@@ -311,6 +356,14 @@ if (!function_exists('initializeTables')) {
             }
             
             createUsersTable();
+            createMatchTable();
+            createNewsTable();
+            createFavoritesTable();
+            createFeedbackTable();
+            createSubscriptionsTable();
+            
+            // Add winner column to matches table if it doesn't exist
+            addWinnerColumnToMatchesTable();
             
             // Check database structure
             checkDatabaseStructure($db);

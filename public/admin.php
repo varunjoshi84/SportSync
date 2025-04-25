@@ -554,6 +554,7 @@ $matches = executeQuery($sql, $params);
                                 <th>Venue</th>
                                 <th>Status</th>
                                 <th>Score</th>
+                                <th>Winner</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -580,6 +581,19 @@ $matches = executeQuery($sql, $params);
                                             </form>
                                         </td>
                                         <td>
+                                            <?php if ($match['status'] == 'completed'): ?>
+                                                <?php if ($match['winner']): ?>
+                                                    <span class="px-2 py-1 bg-green-800 text-white rounded text-sm">
+                                                        <?php echo $match['winner'] == 'Draw' ? 'Draw' : htmlspecialchars($match['winner']); ?>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-sm">Not set</span>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-sm">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
                                             <div class="flex flex-wrap gap-2">
                                                 <button onclick="manageTeam(<?php echo htmlspecialchars(json_encode($match)); ?>)" 
                                                         class="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm">
@@ -599,7 +613,7 @@ $matches = executeQuery($sql, $params);
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-500">No matches found.</td>
+                                    <td colspan="8" class="text-center py-4 text-gray-500">No matches found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

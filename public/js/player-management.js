@@ -112,8 +112,8 @@ function loadPlayers(team) {
     
     playersList.innerHTML = '<p class="text-gray-500">Loading players...</p>';
     
-    // Fix the API path to point to the correct backend location
-    fetch(`../backend/api/player_management.php?action=get_players&match_id=${matchId}&team=${team}`)
+    // Fix the API path to point to the correct backend location without the unnecessary action parameter
+    fetch(`../backend/api/player_management.php?match_id=${matchId}&team=${team}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok: ' + response.status);

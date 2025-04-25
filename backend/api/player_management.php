@@ -1,5 +1,4 @@
 <?php
-// Enable error reporting for debugging
 ini_set('display_errors', 0); // Don't display errors directly to users
 error_reporting(E_ALL); // Report all PHP errors
 

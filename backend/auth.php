@@ -5,8 +5,6 @@
  * This file contains functions for user authentication including login, logout,
  * and session management functionality for the SportSync application.
  * 
- * @package SportSync
- * @version 1.0
  */
 
 if (!function_exists('loginUser')) {

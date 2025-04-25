@@ -1,19 +1,5 @@
 <?php
-/**
- * Match Management Module
- * 
- * This file contains functions for managing sports matches in the SportSync system.
- * It handles CRUD operations for matches, favorites, and provides API endpoints
- * for retrieving match data filtered by various criteria.
- * 
- * Key Features:
- * - Match table creation and management
- * - Match filtering by sport type (cricket, football)
- * - Match status management (upcoming, live, completed)
- * - Score and statistics updates
- * - User favorites functionality
- * - API request handling for match data
- */
+
 
 ob_start();
 ini_set('display_errors', 0);
@@ -201,6 +187,7 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 match_time DATETIME NOT NULL,
                 sport ENUM('cricket', 'football') NOT NULL,
                 status ENUM('upcoming', 'live', 'completed') DEFAULT 'upcoming',
+                winner VARCHAR(100) DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )";
             return executeQuery($sql);
@@ -237,6 +224,40 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             $updateFields = [];
             $params = [':id' => $match_id];
 
+            // Get the current match data to use as fallback values
+            $currentMatch = getMatchById($match_id);
+            if (!$currentMatch) {
+                error_log("Match not found with ID: $match_id");
+                throw new Exception("Match not found with ID: $match_id");
+            }
+
+            // Validate status field - ensure it's one of the allowed values
+            if (isset($data['status'])) {
+                $allowedStatuses = ['upcoming', 'live', 'completed'];
+                if (!in_array($data['status'], $allowedStatuses)) {
+                    error_log("Invalid status value: " . $data['status'] . ". Using current status: " . $currentMatch['status']);
+                    $data['status'] = $currentMatch['status']; // Use existing value if invalid
+                }
+            }
+
+            // If status is being updated to 'completed', determine the winner
+            if (isset($data['status']) && $data['status'] === 'completed') {
+                $team1 = $data['team1'] ?? $currentMatch['team1'];
+                $team2 = $data['team2'] ?? $currentMatch['team2'];
+                $team1_score = $data['team1_score'] ?? $currentMatch['team1_score'];
+                $team2_score = $data['team2_score'] ?? $currentMatch['team2_score'];
+                
+                // Determine winner and add to data
+                $data['winner'] = determineWinner($team1_score, $team2_score, $team1, $team2);
+                error_log("Match completed, winner determined: " . $data['winner']);
+            }
+
+            // Handle empty match_time specially - use existing value if empty
+            if (isset($data['match_time']) && empty($data['match_time'])) {
+                error_log("Empty match_time detected - using existing value from database");
+                $data['match_time'] = $currentMatch['match_time'];
+            }
+
             foreach ($data as $key => $value) {
                 if ($value !== null) {
                     $updateFields[] = "$key = :$key";
@@ -249,10 +270,21 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             }
 
             $sql = "UPDATE matches SET " . implode(', ', $updateFields) . " WHERE id = :id";
+            error_log("SQL: $sql");
+            error_log("Params: " . json_encode($params));
             
             try {
-                $result = executeQuery($sql, $params);
-                return $result !== false;
+                $db = getDB();
+                $stmt = $db->prepare($sql);
+                $result = $stmt->execute($params);
+                
+                if ($result) {
+                    error_log("Match updated successfully");
+                    return true;
+                } else {
+                    error_log("Match update failed: " . json_encode($stmt->errorInfo()));
+                    return false;
+                }
             } catch (Exception $e) {
                 error_log("Error updating match: " . $e->getMessage());
                 throw new Exception("Failed to update match: " . $e->getMessage());
@@ -417,6 +449,28 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             $sql = "SELECT * FROM matches WHERE sport = :sport AND status IN ('live', 'upcoming') ORDER BY match_time DESC";
             $params = [':sport' => $sport];
             return executeQuery($sql, $params);
+        }
+    }
+
+    if (!function_exists('determineWinner')) {
+        /**
+         * Determines the winner of a match based on scores
+         * 
+         * @param int $team1_score Score of team 1
+         * @param int $team2_score Score of team 2
+         * @param string $team1 Name of team 1
+         * @param string $team2 Name of team 2
+         * @return string|null Name of winning team or "Draw" or null if not determined
+         */
+        function determineWinner($team1_score, $team2_score, $team1, $team2) {
+            if ($team1_score > $team2_score) {
+                return $team1;
+            } elseif ($team2_score > $team1_score) {
+                return $team2;
+            } elseif ($team1_score == $team2_score) {
+                return "Draw";
+            }
+            return null; // No winner determined
         }
     }
 
