@@ -9,7 +9,6 @@
  * - Success message display after registration
  * - Session management
  * - Redirection to home page after successful login
- * - Detailed logging for debugging purposes
  */
 
 <?php
@@ -20,10 +19,6 @@ require_once __DIR__ . '/init.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-// Debug session state
-error_log("Login page - Session status: " . session_status());
-error_log("Login page - Session data: " . json_encode($_SESSION));
 
 $page = 'login';
 include __DIR__ . '/header.php';
@@ -44,29 +39,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['form_submit']) && $_PO
     if (empty($email) || empty($password)) {
         $error = "Email and password are required.";
     } else {
-        error_log("Login attempt - Email: " . $email);
-        
         $result = loginUser($email, $password);
-        error_log("Login result: " . json_encode($result));
         
         if ($result['success']) {
-            error_log("Login successful - Session data: " . json_encode($_SESSION));
-            error_log("Login successful - Account type: " . ($_SESSION['account_type'] ?? 'not set'));
-            error_log("Login successful - User ID: " . ($_SESSION['user_id'] ?? 'not set'));
-            error_log("Login successful - Username: " . ($_SESSION['username'] ?? 'not set'));
-            error_log("Login successful - Redirecting to home");
             header("Location: ?page=home");
             exit();
         } else {
-            error_log("Login failed - Error: " . $result['message']);
             $error = $result['message'];
         }
     }
 }
-
-// Debug session after potential login
-error_log("Login page - Final session status: " . session_status());
-error_log("Login page - Final session data: " . json_encode($_SESSION));
 ?>
 
 <div class="flex-grow flex items-center justify-center min-h-screen pt-16">

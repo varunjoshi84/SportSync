@@ -5,6 +5,21 @@ require_once __DIR__ . '/init.php';
 // Get match ID from URL
 $match_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
+// Handle player score updates
+$scoreUpdateMessage = '';
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_player_score'])) {
+    require_once __DIR__ . '/../backend/player.php';
+    
+    $player_id = isset($_POST['player_id']) ? intval($_POST['player_id']) : 0;
+    $score = isset($_POST['score']) ? intval($_POST['score']) : 0;
+    
+    if ($player_id > 0 && updatePlayerScore($player_id, $score)) {
+        $scoreUpdateMessage = '<div class="bg-green-700 text-white p-2 rounded mb-4">Player score updated successfully!</div>';
+    } else {
+        $scoreUpdateMessage = '<div class="bg-red-700 text-white p-2 rounded mb-4">Failed to update player score.</div>';
+    }
+}
+
 // Get match details
 $match = null;
 if ($match_id > 0) {
@@ -25,6 +40,9 @@ if (!$match) {
 
 $page = 'scoreboard';
 include __DIR__ . '/header.php';
+
+// Check if the user is an admin
+$isAdmin = isset($_SESSION['user_id']) && getUserById($_SESSION['user_id'])['account_type'] === 'admin';
 ?>
 
 <!DOCTYPE html>
@@ -38,6 +56,9 @@ include __DIR__ . '/header.php';
 <body class="bg-black min-h-screen flex flex-col">
     <div class="flex-grow">
         <div class="max-w-7xl mx-auto mt-32 px-4 mb-16">
+            <!-- Display score update message if any -->
+            <?php echo $scoreUpdateMessage; ?>
+            
             <div class="mb-6">
                 <a href="index.php?page=<?php echo $match['sport']; ?>" class="text-red-500 hover:text-red-400 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -89,6 +110,47 @@ include __DIR__ . '/header.php';
                             <?php echo htmlspecialchars($match['winner']); ?> Won
                         <?php endif; ?>
                     </h3>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($isAdmin && ($match['status'] === 'live' || $match['status'] === 'completed')): ?>
+                <div class="bg-gray-800 rounded-lg p-4 mb-8">
+                    <h3 class="text-xl font-bold text-white mb-4">Update Player Scores</h3>
+                    
+                    <?php if (!empty($team1Players) || !empty($team2Players)): ?>
+                    <form method="POST" class="space-y-4">
+                        <div class="mb-4">
+                            <label for="player_id" class="block text-white mb-2">Select Player</label>
+                            <select id="player_id" name="player_id" class="w-full p-2 rounded bg-gray-700 text-white" required>
+                                <option value="">-- Select Player --</option>
+                                <?php if (!empty($team1Players)): ?>
+                                <optgroup label="<?php echo htmlspecialchars($match['team1']); ?>">
+                                    <?php foreach ($team1Players as $player): ?>
+                                    <option value="<?php echo $player['id']; ?>"><?php echo htmlspecialchars($player['name'] . ' - ' . $player['role']); ?> (Current: <?php echo $player['score']; ?>)</option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($team2Players)): ?>
+                                <optgroup label="<?php echo htmlspecialchars($match['team2']); ?>">
+                                    <?php foreach ($team2Players as $player): ?>
+                                    <option value="<?php echo $player['id']; ?>"><?php echo htmlspecialchars($player['name'] . ' - ' . $player['role']); ?> (Current: <?php echo $player['score']; ?>)</option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="score" class="block text-white mb-2">Score</label>
+                            <input type="number" id="score" name="score" min="0" class="w-full p-2 rounded bg-gray-700 text-white" required>
+                        </div>
+                        
+                        <button type="submit" name="update_player_score" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Update Score</button>
+                    </form>
+                    <?php else: ?>
+                    <p class="text-white">No players available for this match yet.</p>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>

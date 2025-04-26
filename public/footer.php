@@ -2,13 +2,7 @@
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/email.php';
 
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe'])) {
-    error_log("Newsletter form submitted with email: " . ($_POST['email'] ?? 'not set'));
-    
     $email = trim($_POST['email'] ?? '');
     $errors = [];
 
@@ -32,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe'])) {
                     email VARCHAR(255) NOT NULL UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )");
-                error_log("Created subscriptions table");
             }
             
             // Check if email already exists
@@ -41,21 +34,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe'])) {
             
             if ($stmt->rowCount() > 0) {
                 $errors[] = "This email is already subscribed";
-                error_log("Email already exists: $email");
             } else {
                 // Insert new subscription
                 $stmt = $db->prepare("INSERT INTO subscriptions (email) VALUES (?)");
                 $result = $stmt->execute([$email]);
                 
                 if ($result) {
-                    error_log("Successfully added subscription for: $email");
                     // Send welcome email
                     $emailSent = sendSubscriptionEmail($email);
                     
                     if ($emailSent) {
                         $_SESSION['success_message'] = "Thank you for subscribing! We've sent a confirmation email.";
                     } else {
-                        $_SESSION['success_message'] = "Thank you for subscribing! However, we couldn't send the confirmation email.";
+                        $_SESSION['success_message'] = "Thank you for subscribing!";
                     }
                     
                     // Redirect to prevent form resubmission
@@ -63,39 +54,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe'])) {
                     exit();
                 } else {
                     $errors[] = "Failed to add your subscription. Please try again.";
-                    error_log("Failed to insert subscription: " . print_r($stmt->errorInfo(), true));
                 }
             }
         } catch (PDOException $e) {
-            error_log("Database error in newsletter subscription: " . $e->getMessage());
             $errors[] = "An error occurred while processing your subscription. Please try again later.";
         } catch (Exception $e) {
-            error_log("General error in newsletter subscription: " . $e->getMessage());
             $errors[] = "An unexpected error occurred. Please try again later.";
         }
     }
 }
 ?>
-
-<!-- Display error messages -->
-<?php if (!empty($errors)): ?>
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-        <strong class="font-bold">Error!</strong>
-        <ul class="list-disc list-inside">
-            <?php foreach ($errors as $error): ?>
-                <li><?php echo htmlspecialchars($error); ?></li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-<?php endif; ?>
-
-<!-- Display success message -->
-<?php if (isset($_SESSION['success_message'])): ?>
-    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-        <span class="block sm:inline"><?php echo htmlspecialchars($_SESSION['success_message']); ?></span>
-    </div>
-    <?php unset($_SESSION['success_message']); ?>
-<?php endif; ?>
 
 <footer class="bg-black text-white py-12">
 <div class="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400"></div>

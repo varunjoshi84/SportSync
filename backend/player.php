@@ -1,15 +1,4 @@
 <?php
-/**
- * Player Management Functions
- *
- * This file contains functions for managing player data including:
- * - Creating the players database table
- * - Adding new players to matches
- * - Retrieving players by match ID
- * - Updating player scores
- * - Deleting players from the system
- */
-
 // Prevent multiple inclusions
 if (!defined('PLAYER_PHP_INCLUDED')) {
     define('PLAYER_PHP_INCLUDED', true);
@@ -17,11 +6,7 @@ if (!defined('PLAYER_PHP_INCLUDED')) {
     require_once __DIR__ . '/db.php';
     
     if (!function_exists('createPlayerTable')) {
-        /**
-         * Creates the players table if it doesn't exist
-         *
-         * @return mixed PDOStatement if successful, false otherwise
-         */
+      
         function createPlayerTable() {
             $sql = "CREATE TABLE IF NOT EXISTS players (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -39,21 +24,12 @@ if (!defined('PLAYER_PHP_INCLUDED')) {
     }
 
     if (!function_exists('addPlayer')) {
-        /**
-         * Adds a new player to a match
-         *
-         * @param string $name Player's name
-         * @param string $team Team name
-         * @param string $sport Sport type (e.g., 'cricket', 'football')
-         * @param string $role Player's role (e.g., 'batsman', 'bowler', 'forward')
-         * @param int $match_id ID of the match
-         * @return int|bool Player ID if successful, false otherwise
-         */
-        function addPlayer($name, $team, $sport, $role, $match_id) {
+       
+        function addPlayer($name, $team, $sport, $role, $match_id, $score = 0) {
             try {
                 $db = getDB();
-                $sql = "INSERT INTO players (name, team, sport, role, match_id) 
-                        VALUES (:name, :team, :sport, :role, :match_id)";
+                $sql = "INSERT INTO players (name, team, sport, role, match_id, score) 
+                        VALUES (:name, :team, :sport, :role, :match_id, :score)";
                         
                 $stmt = $db->prepare($sql);
                 $params = [
@@ -61,37 +37,57 @@ if (!defined('PLAYER_PHP_INCLUDED')) {
                     ':team' => $team,
                     ':sport' => $sport,
                     ':role' => $role,
-                    ':match_id' => $match_id
+                    ':match_id' => $match_id,
+                    ':score' => $score
                 ];
-                
-                error_log("Adding player with params: " . json_encode($params));
                 
                 $result = $stmt->execute($params);
                 
                 if ($result) {
                     // Return the ID of the newly created player
                     $playerId = $db->lastInsertId();
-                    error_log("Player added successfully with ID: " . $playerId);
+                    
+                    // If score is greater than 0, update the match score
+                    if ($score > 0) {
+                        $matchSql = "SELECT id, team1, team2, team1_score, team2_score FROM matches WHERE id = :match_id";
+                        $matchStmt = $db->prepare($matchSql);
+                        $matchStmt->execute([':match_id' => $match_id]);
+                        $match = $matchStmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($match) {
+                            // Determine which team's score to update
+                            if ($team == $match['team1']) {
+                                $newScore = $match['team1_score'] + $score;
+                                $updateMatchSql = "UPDATE matches SET team1_score = :score WHERE id = :match_id";
+                            } else if ($team == $match['team2']) {
+                                $newScore = $match['team2_score'] + $score;
+                                $updateMatchSql = "UPDATE matches SET team2_score = :score WHERE id = :match_id";
+                            } else {
+                                // Team doesn't match either team1 or team2
+                                return $playerId;
+                            }
+                            
+                            // Execute the match score update
+                            $updateMatchStmt = $db->prepare($updateMatchSql);
+                            $updateMatchStmt->execute([
+                                ':score' => $newScore,
+                                ':match_id' => $match_id
+                            ]);
+                        }
+                    }
+                    
                     return $playerId;
                 } else {
-                    error_log("Failed to add player: " . json_encode($stmt->errorInfo()));
                     return false;
                 }
             } catch (Exception $e) {
-                error_log("Exception adding player: " . $e->getMessage());
                 return false;
             }
         }
     }
 
     if (!function_exists('getPlayersByMatch')) {
-        /**
-         * Retrieves players for a specific match, optionally filtered by team
-         *
-         * @param int $match_id Match ID to retrieve players for
-         * @param string|null $team Optional team name to filter by
-         * @return array List of players for the match
-         */
+      
         function getPlayersByMatch($match_id, $team = null) {
             $sql = "SELECT * FROM players WHERE match_id = :match_id";
             $params = [':match_id' => $match_id];
@@ -106,16 +102,24 @@ if (!defined('PLAYER_PHP_INCLUDED')) {
     }
 
     if (!function_exists('updatePlayerScore')) {
-        /**
-         * Updates a player's score
-         *
-         * @param int $player_id Player ID to update
-         * @param int $score New score value
-         * @return bool True if successful, false otherwise
-         */
+      
         function updatePlayerScore($player_id, $score) {
             try {
                 $db = getDB();
+                // First get the current player info to determine the team and match_id
+                $playerSql = "SELECT id, match_id, team, score FROM players WHERE id = :id";
+                $playerStmt = $db->prepare($playerSql);
+                $playerStmt->execute([':id' => $player_id]);
+                $player = $playerStmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$player) {
+                    return false;
+                }
+                
+                // Calculate score difference to update match total
+                $scoreDifference = $score - $player['score'];
+                
+                // Update the player's score
                 $sql = "UPDATE players SET score = :score WHERE id = :id";
                 
                 $stmt = $db->prepare($sql);
@@ -124,56 +128,113 @@ if (!defined('PLAYER_PHP_INCLUDED')) {
                     ':score' => $score
                 ];
                 
-                error_log("Updating player score with params: " . json_encode($params));
-                
                 $result = $stmt->execute($params);
                 
                 if ($result) {
                     // Check if any rows were actually affected
                     $rowsAffected = $stmt->rowCount();
-                    error_log("Player score updated. Rows affected: " . $rowsAffected);
+                    
+                    // If player score was updated successfully, update the match score
+                    if ($rowsAffected > 0 && $scoreDifference != 0) {
+                        // Get the match details
+                        $matchSql = "SELECT id, team1, team2, team1_score, team2_score, sport FROM matches WHERE id = :match_id";
+                        $matchStmt = $db->prepare($matchSql);
+                        $matchStmt->execute([':match_id' => $player['match_id']]);
+                        $match = $matchStmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($match) {
+                            // Determine which team's score to update
+                            if ($player['team'] == $match['team1']) {
+                                $newScore = max(0, $match['team1_score'] + $scoreDifference);
+                                $updateMatchSql = "UPDATE matches SET team1_score = :score WHERE id = :match_id";
+                            } else if ($player['team'] == $match['team2']) {
+                                $newScore = max(0, $match['team2_score'] + $scoreDifference);
+                                $updateMatchSql = "UPDATE matches SET team2_score = :score WHERE id = :match_id";
+                            } else {
+                                // Team doesn't match either team1 or team2
+                                return $rowsAffected > 0;
+                            }
+                            
+                            // Execute the match score update
+                            $updateMatchStmt = $db->prepare($updateMatchSql);
+                            $updateMatchStmt->execute([
+                                ':score' => $newScore,
+                                ':match_id' => $player['match_id']
+                            ]);
+                        }
+                    }
+                    
                     return $rowsAffected > 0;
                 } else {
-                    error_log("Failed to update player score: " . json_encode($stmt->errorInfo()));
                     return false;
                 }
             } catch (Exception $e) {
-                error_log("Exception updating player score: " . $e->getMessage());
                 return false;
             }
         }
     }
 
     if (!function_exists('deletePlayer')) {
-        /**
-         * Deletes a player from the system
-         *
-         * @param int $player_id Player ID to delete
-         * @return bool True if successful, false otherwise
-         */
+       
         function deletePlayer($player_id) {
             try {
                 $db = getDB();
-                $sql = "DELETE FROM players WHERE id = :id";
                 
+                // First get the player info to subtract their score from the match total
+                $playerSql = "SELECT id, match_id, team, score FROM players WHERE id = :id";
+                $playerStmt = $db->prepare($playerSql);
+                $playerStmt->execute([':id' => $player_id]);
+                $player = $playerStmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$player) {
+                    return false;
+                }
+                
+                // Delete the player
+                $sql = "DELETE FROM players WHERE id = :id";
                 $stmt = $db->prepare($sql);
                 $params = [':id' => $player_id];
-                
-                error_log("Deleting player with ID: " . $player_id);
-                
                 $result = $stmt->execute($params);
                 
                 if ($result) {
                     // Check if any rows were actually deleted
                     $rowsAffected = $stmt->rowCount();
-                    error_log("Player deleted. Rows affected: " . $rowsAffected);
+                    
+                    // If player was deleted successfully and had a score, update the match score
+                    if ($rowsAffected > 0 && $player['score'] > 0) {
+                        // Get the match details
+                        $matchSql = "SELECT id, team1, team2, team1_score, team2_score FROM matches WHERE id = :match_id";
+                        $matchStmt = $db->prepare($matchSql);
+                        $matchStmt->execute([':match_id' => $player['match_id']]);
+                        $match = $matchStmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($match) {
+                            // Determine which team's score to update
+                            if ($player['team'] == $match['team1']) {
+                                $newScore = max(0, $match['team1_score'] - $player['score']);
+                                $updateMatchSql = "UPDATE matches SET team1_score = :score WHERE id = :match_id";
+                            } else if ($player['team'] == $match['team2']) {
+                                $newScore = max(0, $match['team2_score'] - $player['score']);
+                                $updateMatchSql = "UPDATE matches SET team2_score = :score WHERE id = :match_id";
+                            } else {
+                                // Team doesn't match either team1 or team2
+                                return $rowsAffected > 0;
+                            }
+                            
+                            // Execute the match score update
+                            $updateMatchStmt = $db->prepare($updateMatchSql);
+                            $updateMatchStmt->execute([
+                                ':score' => $newScore,
+                                ':match_id' => $player['match_id']
+                            ]);
+                        }
+                    }
+                    
                     return $rowsAffected > 0;
                 } else {
-                    error_log("Failed to delete player: " . json_encode($stmt->errorInfo()));
                     return false;
                 }
             } catch (Exception $e) {
-                error_log("Exception deleting player: " . $e->getMessage());
                 return false;
             }
         }

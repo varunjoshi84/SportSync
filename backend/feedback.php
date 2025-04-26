@@ -2,15 +2,10 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/email.php';
 
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // Define this constant at the beginning so included files can check it
 define('FEEDBACK_INCLUDED', true);
 
 // Check if this is a direct API call or included from another file
-// We determine this by checking the script name - if it's this file, then it's a direct API call
 $isApi = (basename($_SERVER['SCRIPT_NAME']) === basename(__FILE__));
 
 if ($isApi) {
@@ -58,28 +53,21 @@ function processFeedback($name, $email, $subject, $message) {
             ':status' => 'pending'
         ];
         
-        // Debug log
-        error_log("Executing SQL: $sql with params: " . print_r($params, true));
-        
         $stmt = $db->prepare($sql);
         if (!$stmt) {
-            error_log("Failed to prepare statement: " . json_encode($db->errorInfo()));
             throw new Exception("Database error: Failed to prepare statement");
         }
         
         $result = $stmt->execute($params);
         
         if (!$result) {
-            error_log("Failed to execute statement: " . json_encode($stmt->errorInfo()));
             throw new Exception("Database error: Failed to save feedback");
         }
         
         // Send thank you email, but don't fail if email sending fails
         try {
             $emailSent = sendFeedbackEmail($name, $email, $subject, $message);
-            error_log("Feedback email sending result: " . ($emailSent ? "Success" : "Failed"));
         } catch (Exception $emailErr) {
-            error_log("Email error ignored: " . $emailErr->getMessage());
             $emailSent = false;
         }
 
@@ -91,10 +79,9 @@ function processFeedback($name, $email, $subject, $message) {
             'redirect' => '?page=thank-you'
         ];
     } catch (Exception $e) {
-        error_log("Feedback submission error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
         return [
             'success' => false,
-            'message' => "An error occurred while processing your feedback. Please try again later. " . $e->getMessage()
+            'message' => "An error occurred while processing your feedback. Please try again later."
         ];
     }
 }
@@ -110,7 +97,6 @@ function ensureFeedbackTableExists($db) {
         $tableExists = ($result->rowCount() > 0);
         
         if (!$tableExists) {
-            error_log("Feedback table does not exist, creating it");
             createFeedbackTable();
         } else {
             // Check if table has the correct structure
@@ -119,8 +105,6 @@ function ensureFeedbackTableExists($db) {
             
             // Check if 'subject' and 'status' columns exist
             if (!in_array('subject', $columns) || !in_array('status', $columns)) {
-                error_log("Feedback table missing required columns, altering table");
-                
                 // Add missing columns
                 if (!in_array('subject', $columns)) {
                     $db->exec("ALTER TABLE feedback ADD COLUMN subject VARCHAR(200) NOT NULL DEFAULT 'General Feedback' AFTER email");
@@ -132,8 +116,7 @@ function ensureFeedbackTableExists($db) {
             }
         }
     } catch (Exception $e) {
-        error_log("Error ensuring feedback table: " . $e->getMessage());
-        throw new Exception("Database structure error: " . $e->getMessage());
+        throw new Exception("Database structure error");
     }
 }
 
@@ -143,9 +126,6 @@ if ($isApi && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
     $subject = filter_var(trim($_POST['subject'] ?? ''), FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     $message = filter_var(trim($_POST['message'] ?? ''), FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-    
-    // Debug log
-    error_log("Processing feedback submission - Name: $name, Email: $email, Subject: $subject");
     
     $result = processFeedback($name, $email, $subject, $message);
     

@@ -1,11 +1,5 @@
 <?php
 
-
-ob_start();
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/error_log.txt');
-
 // Prevent multiple inclusions
 if (!defined('MATCH_PHP_INCLUDED')) {
     define('MATCH_PHP_INCLUDED', true);
@@ -32,7 +26,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
         }
     }
 
-    // Define functions only if they don't exist
     if (!function_exists('getLiveMatches')) {
         function getLiveMatches($sport = null) {
             $params = [];
@@ -161,8 +154,7 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 ]);
                 return $result !== false;
             } catch (Exception $e) {
-                error_log("Error adding match: " . $e->getMessage());
-                throw new Exception("Failed to add match: " . $e->getMessage());
+                return false;
             }
         }
     }
@@ -227,15 +219,13 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             // Get the current match data to use as fallback values
             $currentMatch = getMatchById($match_id);
             if (!$currentMatch) {
-                error_log("Match not found with ID: $match_id");
-                throw new Exception("Match not found with ID: $match_id");
+                return false;
             }
 
             // Validate status field - ensure it's one of the allowed values
             if (isset($data['status'])) {
                 $allowedStatuses = ['upcoming', 'live', 'completed'];
                 if (!in_array($data['status'], $allowedStatuses)) {
-                    error_log("Invalid status value: " . $data['status'] . ". Using current status: " . $currentMatch['status']);
                     $data['status'] = $currentMatch['status']; // Use existing value if invalid
                 }
             }
@@ -249,12 +239,10 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 
                 // Determine winner and add to data
                 $data['winner'] = determineWinner($team1_score, $team2_score, $team1, $team2);
-                error_log("Match completed, winner determined: " . $data['winner']);
             }
 
             // Handle empty match_time specially - use existing value if empty
             if (isset($data['match_time']) && empty($data['match_time'])) {
-                error_log("Empty match_time detected - using existing value from database");
                 $data['match_time'] = $currentMatch['match_time'];
             }
 
@@ -270,24 +258,15 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             }
 
             $sql = "UPDATE matches SET " . implode(', ', $updateFields) . " WHERE id = :id";
-            error_log("SQL: $sql");
-            error_log("Params: " . json_encode($params));
             
             try {
                 $db = getDB();
                 $stmt = $db->prepare($sql);
                 $result = $stmt->execute($params);
                 
-                if ($result) {
-                    error_log("Match updated successfully");
-                    return true;
-                } else {
-                    error_log("Match update failed: " . json_encode($stmt->errorInfo()));
-                    return false;
-                }
+                return $result;
             } catch (Exception $e) {
-                error_log("Error updating match: " . $e->getMessage());
-                throw new Exception("Failed to update match: " . $e->getMessage());
+                return false;
             }
         }
     }
@@ -310,10 +289,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     if (!function_exists('handleApiRequest')) {
         function handleApiRequest() {
             header('Content-Type: application/json');
-            
-            // Add error logging
-            error_log("API Request received: " . $_SERVER['REQUEST_URI']);
-            error_log("GET parameters: " . print_r($_GET, true));
             
             if (isset($_GET['action'])) {
                 switch ($_GET['action']) {
@@ -365,7 +340,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             try {
                 return executeQuery($sql, [':user_id' => $user_id, ':match_id' => $match_id]);
             } catch (Exception $e) {
-                error_log("Error adding to favorites: " . $e->getMessage());
                 return false;
             }
         }
@@ -377,7 +351,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             try {
                 return executeQuery($sql, [':user_id' => $user_id, ':match_id' => $match_id]);
             } catch (Exception $e) {
-                error_log("Error removing from favorites: " . $e->getMessage());
                 return false;
             }
         }
@@ -408,7 +381,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             try {
                 return executeQuery($sql, $params);
             } catch (Exception $e) {
-                error_log("Error getting favorite matches: " . $e->getMessage());
                 return [];
             }
         }
@@ -422,7 +394,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 $result = executeQuery($sql, [':user_id' => $user_id, ':match_id' => $match_id]);
                 return $result && $result[0]['count'] > 0;
             } catch (Exception $e) {
-                error_log("Error checking favorite status: " . $e->getMessage());
                 return false;
             }
         }
@@ -453,15 +424,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
     }
 
     if (!function_exists('determineWinner')) {
-        /**
-         * Determines the winner of a match based on scores
-         * 
-         * @param int $team1_score Score of team 1
-         * @param int $team2_score Score of team 2
-         * @param string $team1 Name of team 1
-         * @param string $team2 Name of team 2
-         * @return string|null Name of winning team or "Draw" or null if not determined
-         */
         function determineWinner($team1_score, $team2_score, $team1, $team2) {
             if ($team1_score > $team2_score) {
                 return $team1;
@@ -470,15 +432,13 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             } elseif ($team1_score == $team2_score) {
                 return "Draw";
             }
-            return null; // No winner determined
+            return null;
         }
     }
 
-    // Initialize tables when this file is included
     if (function_exists('initializeTables')) {
         initializeTables();
     } else {
-        // Create necessary tables if initializeTables doesn't exist
         if (function_exists('createMatchTable')) {
             createMatchTable();
         }
@@ -487,28 +447,20 @@ if (!defined('MATCH_PHP_INCLUDED')) {
         }
     }
 
-    // Handle API requests if this file is accessed directly
     if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
         handleApiRequest();
     }
 
-    // Handle form submissions
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
-            // Handle toggle_favorite separately since it's more commonly used
             if (isset($_POST['toggle_favorite'])) {
                 header('Content-Type: application/json');
                 if (ob_get_length()) ob_clean();
                 
-                // Log the request for debugging
-                error_log('toggle_favorite POST: ' . print_r($_POST, true));
-                
-                // Get parameters
                 $user_id = $_POST['user_id'] ?? null;
                 $match_id = $_POST['match_id'] ?? null;
                 $is_favorite = isset($_POST['is_favorite']) && $_POST['is_favorite'] === 'true';
 
-                // Validate required parameters
                 if (!$user_id || !$match_id) {
                     $response = ['success' => false, 'error' => 'Missing user_id or match_id'];
                     echo json_encode($response);
@@ -518,41 +470,33 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 try {
                     if ($is_favorite) {
                         $result = removeFromFavorites($user_id, $match_id);
-                        error_log("Removing from favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
                     } else {
                         $result = addToFavorites($user_id, $match_id);
-                        error_log("Adding to favorites: user_id=$user_id, match_id=$match_id, result=" . ($result ? 'success' : 'failed'));
                     }
                     
-                    // Always send a definitive response
                     $response = [
                         'success' => ($result !== false), 
                         'is_favorite' => !$is_favorite,
                         'action' => $is_favorite ? 'removed' : 'added'
                     ];
                     
-                    // Make sure we have output, even if result is false
                     if ($result === false) {
                         $response['error'] = 'Database operation failed';
                     }
                 } catch (Exception $e) {
-                    error_log("Error in toggle_favorite: " . $e->getMessage());
                     $response = ['success' => false, 'error' => $e->getMessage()];
                 }
                 
-                // Add additional error handling to guarantee output
                 if (empty($response)) {
                     $response = ['success' => false, 'error' => 'Unknown server error occurred'];
                 }
                 
-                // Ensure we're sending valid JSON with proper headers
                 if (!headers_sent()) {
                     header('Content-Type: application/json');
                 }
                 echo json_encode($response);
                 exit;
             }
-            // Handle other form submissions
             else if (isset($_POST['add_match']) || isset($_POST['update_match']) || isset($_POST['delete_match']) || 
                 isset($_POST['add_to_favorites']) || isset($_POST['remove_from_favorites'])) {
                 
@@ -560,7 +504,6 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                 $response = ['success' => false];
 
                 if (isset($_POST['add_match'])) {
-                    // Handle add match
                     $team1 = $_POST['team1'];
                     $team2 = $_POST['team2'];
                     $venue = $_POST['venue'];
@@ -568,85 +511,71 @@ if (!defined('MATCH_PHP_INCLUDED')) {
                     $sport = $_POST['sport'];
                     $status = $_POST['status'] ?? 'upcoming';
 
-                    try {
-                        if (addMatch($team1, $team2, $venue, $match_time, $sport, $status)) {
-                            $response = ['success' => true, 'message' => 'Match added successfully'];
-                        } else {
-                            $response = ['success' => false, 'error' => 'Failed to add match'];
-                        }
-                    } catch (Exception $e) {
-                        $response = ['success' => false, 'error' => $e->getMessage()];
+                    if (addMatch($team1, $team2, $venue, $match_time, $sport, $status)) {
+                        $response = ['success' => true, 'message' => 'Match added successfully'];
+                    } else {
+                        $response = ['success' => false, 'error' => 'Failed to add match'];
                     }
                 }
                 elseif (isset($_POST['update_match_details'])) {
-                    // Handle update match
-                    try {
-                        $match_id = $_POST['match_id'];
-                        $data = [
-                            'team1' => $_POST['team1'],
-                            'team2' => $_POST['team2'],
-                            'venue' => $_POST['venue'],
-                            'match_time' => $_POST['match_time'],
-                            'sport' => $_POST['sport'],
-                            'status' => $_POST['status'],
-                            'team1_score' => $_POST['team1_score'],
-                            'team2_score' => $_POST['team2_score']
-                        ];
+                    $match_id = $_POST['match_id'];
+                    $data = [
+                        'team1' => $_POST['team1'] ?? null,
+                        'team2' => $_POST['team2'] ?? null,
+                        'venue' => $_POST['venue'] ?? null,
+                        'match_time' => $_POST['match_time'] ?? null,
+                        'sport' => $_POST['sport'] ?? null,
+                        'status' => $_POST['status'] ?? null,
+                        'team1_score' => $_POST['team1_score'] ?? null,
+                        'team2_score' => $_POST['team2_score'] ?? null
+                    ];
 
-                        // Add sport-specific fields
-                        if ($_POST['sport'] === 'cricket') {
-                            $data['team1_wickets'] = $_POST['team1_wickets'];
-                            $data['team2_wickets'] = $_POST['team2_wickets'];
-                            $data['team1_overs'] = $_POST['team1_overs'];
-                            $data['team2_overs'] = $_POST['team2_overs'];
-                        }
-                        // Add football-specific fields
-                        if ($_POST['sport'] === 'football') {
-                            $data['team1_shots'] = $_POST['team1_shots'];
-                            $data['team2_shots'] = $_POST['team2_shots'];
-                            $data['team1_possession'] = $_POST['team1_possession'];
-                            $data['team2_possession'] = $_POST['team2_possession'];
-                        }
+                    // Remove null values to avoid updating fields with null
+                    $data = array_filter($data, function($value) {
+                        return $value !== null;
+                    });
 
-                        if (updateMatch($match_id, $data)) {
-                            $response = ['success' => true, 'message' => 'Match updated successfully'];
-                        } else {
-                            $response = ['success' => false, 'error' => 'Failed to update match'];
-                        }
-                    } catch (Exception $e) {
-                        $response = ['success' => false, 'error' => $e->getMessage()];
+                    if (isset($_POST['sport']) && $_POST['sport'] === 'cricket') {
+                        if (isset($_POST['team1_wickets'])) $data['team1_wickets'] = $_POST['team1_wickets'];
+                        if (isset($_POST['team2_wickets'])) $data['team2_wickets'] = $_POST['team2_wickets'];
+                        if (isset($_POST['team1_overs'])) $data['team1_overs'] = $_POST['team1_overs'];
+                        if (isset($_POST['team2_overs'])) $data['team2_overs'] = $_POST['team2_overs'];
+                    }
+                    if (isset($_POST['sport']) && $_POST['sport'] === 'football') {
+                        if (isset($_POST['team1_shots'])) $data['team1_shots'] = $_POST['team1_shots'];
+                        if (isset($_POST['team2_shots'])) $data['team2_shots'] = $_POST['team2_shots'];
+                        if (isset($_POST['team1_possession'])) $data['team1_possession'] = $_POST['team1_possession'];
+                        if (isset($_POST['team2_possession'])) $data['team2_possession'] = $_POST['team2_possession'];
+                    }
+
+                    if (updateMatch($match_id, $data)) {
+                        $response = ['success' => true, 'message' => 'Match updated successfully'];
+                    } else {
+                        $response = ['success' => false, 'error' => 'Failed to update match'];
                     }
                 }
                 elseif (isset($_POST['delete_match'])) {
-                    // Handle delete match
-                    try {
-                        $match_id = $_POST['match_id'];
+                    $match_id = $_POST['match_id'];
+                    
+                    if (!$match_id) {
+                        $response = ['success' => false, 'error' => 'Match ID is required'];
+                    } else {
+                        $match = getMatchById($match_id);
                         
-                        if (!$match_id) {
-                            $response = ['success' => false, 'error' => 'Match ID is required'];
+                        if (!$match) {
+                            $response = ['success' => false, 'error' => 'Match not found'];
                         } else {
-                            // Check if the match exists first
-                            $match = getMatchById($match_id);
+                            $result = deleteMatch($match_id);
                             
-                            if (!$match) {
-                                $response = ['success' => false, 'error' => 'Match not found'];
+                            if ($result !== false) {
+                                $response = ['success' => true, 'message' => 'Match deleted successfully'];
                             } else {
-                                $result = deleteMatch($match_id);
-                                
-                                if ($result !== false) {
-                                    $response = ['success' => true, 'message' => 'Match deleted successfully'];
-                                } else {
-                                    $response = ['success' => false, 'error' => 'Failed to delete match'];
-                                }
+                                $response = ['success' => false, 'error' => 'Failed to delete match'];
                             }
                         }
-                    } catch (Exception $e) {
-                        error_log("Error deleting match: " . $e->getMessage());
-                        $response = ['success' => false, 'error' => 'Error: ' . $e->getMessage()];
                     }
                 }
 
-                // Return the response
                 if (!headers_sent()) {
                     header('Content-Type: application/json');
                 }
@@ -656,7 +585,7 @@ if (!defined('MATCH_PHP_INCLUDED')) {
             }
         } catch (Exception $e) {
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'An unexpected error occurred: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'error' => 'An unexpected error occurred']);
             exit;
         }
     }

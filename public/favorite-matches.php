@@ -1,15 +1,3 @@
-// filepath: /Applications/XAMPP/xamppfiles/htdocs/sportsync/public/favorite-matches.php
-/**
- * Favorite Matches Page
- * 
- * This page displays all matches favorited by the currently logged-in user.
- * Features include:
- * - Display of favorite matches with their details (teams, scores, status, time)
- * - Ability to remove matches from favorites with real-time updates
- * - Filtering by sport (cricket/football) and status (live/upcoming/completed)
- * - Requires user authentication
- */
-
 <?php
 require_once __DIR__ . '/init.php';
 
@@ -102,7 +90,7 @@ $favorite_matches = getFavoriteMatches($_SESSION['user_id'], $sport_filter, $sta
                         </div>
                         <div class="flex justify-between text-xs text-gray-500 mt-2">
                             <span><?php echo htmlspecialchars($match['venue']); ?></span>
-                            <button onclick="toggleFavorite(<?php echo $match['id']; ?>, true)" 
+                            <button onclick="toggleFavorite(<?php echo $match['id']; ?>, true, <?php echo $_SESSION['user_id']; ?>)" 
                                     class="text-red-500 hover:text-red-400 cursor-pointer">
                                 ♡ Remove
                             </button>
@@ -118,66 +106,8 @@ $favorite_matches = getFavoriteMatches($_SESSION['user_id'], $sport_filter, $sta
     </div>
 </div>
 
-<script>
-function toggleFavorite(matchId, isFavorite) {
-    // Create a spinner or loading indicator
-    const targetButton = event.target;
-    const originalText = targetButton.innerHTML;
-    targetButton.innerHTML = '⟳ Processing...';
-    targetButton.disabled = true;
-
-    const formData = new FormData();
-    formData.append('toggle_favorite', '1');
-    formData.append('user_id', '<?php echo $_SESSION['user_id']; ?>');
-    formData.append('match_id', matchId);
-    formData.append('is_favorite', isFavorite ? 'true' : 'false');
-
-    // Add a timestamp to prevent caching
-    const timestamp = new Date().getTime();
-    
-    fetch(`../backend/match.php?_=${timestamp}`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Network error: ${response.status} ${response.statusText}`);
-        }
-        return response.text().then(text => {
-            if (!text || text.trim() === '') {
-                console.error('Empty response from server');
-                return { success: false, error: 'Empty response from server' };
-            }
-            
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                console.error('Invalid JSON response:', text);
-                throw new Error('Invalid JSON response from server');
-            }
-        });
-    })
-    .then(data => {
-        if (data.success) {
-            console.log('Favorite toggled successfully:', data);
-            window.location.reload();
-        } else {
-            targetButton.innerHTML = originalText;
-            targetButton.disabled = false;
-            alert('Failed to update favorite status: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        targetButton.innerHTML = originalText;
-        targetButton.disabled = false;
-        alert('An error occurred while updating favorite status: ' + error.message);
-    });
-}
-</script>
+<!-- Include the toggle-favorite.js file instead of redefining the function -->
+<script src="js/toggle-favorite.js"></script>
 
 <?php include __DIR__ . '/footer.php'; ?>
 </body>

@@ -76,49 +76,37 @@ if (isset($_SESSION['signup_error'])) {
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SportSync - Sign Up</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body class="bg-black min-h-screen flex flex-col">
-    <div class="flex-grow flex items-center justify-center min-h-screen pt-16">
-        <div class="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md mx-4">
-            <h2 class="text-2xl font-bold text-white text-center mb-6">Sign Up</h2>
-            
-            <?php if ($error): ?>
-                <div class="bg-red-500 text-white p-3 rounded-lg mb-4 text-center">
-                    <?php echo htmlspecialchars($error); ?>
-                </div>
-            <?php endif; ?>
-            
-            <?php if ($success): ?>
-                <div class="bg-green-500 text-white p-3 rounded-lg mb-4 text-center">
-                    Registration successful! You can now login.
-                </div>
-            <?php endif; ?>
-            
-            <form method="POST" action="?page=signup" class="space-y-4">
-                <input type="hidden" name="form_submit" value="signup">
-                <div>
-                    <input type="text" name="username" placeholder="Username" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
-                </div>
-                <div>
-                    <input type="email" name="email" placeholder="Email" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
-                </div>
-                <div>
-                    <input type="password" name="password" placeholder="Password" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
-                </div>
-                <button type="submit" class="w-full py-2 bg-red-500 text-white rounded hover:bg-red-600">Sign Up</button>
-            </form>
-            <p class="text-center text-gray-400 mt-4">Already have an account? <a href="?page=login" class="text-red-500 hover:underline">Login</a></p>
-        </div>
+<div class="flex-grow flex items-center justify-center min-h-screen pt-16">
+    <div class="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md mx-4">
+        <h2 class="text-2xl font-bold text-white text-center mb-6">Sign Up</h2>
+        
+        <?php if ($error): ?>
+            <div class="bg-red-500 text-white p-3 rounded-lg mb-4 text-center">
+                <?php echo htmlspecialchars($error); ?>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($success): ?>
+            <div class="bg-green-500 text-white p-3 rounded-lg mb-4 text-center">
+                Registration successful! You can now login.
+            </div>
+        <?php endif; ?>
+        
+        <form method="POST" action="?page=signup" class="space-y-4">
+            <input type="hidden" name="form_submit" value="signup">
+            <div>
+                <input type="text" name="username" placeholder="Username" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
+            </div>
+            <div>
+                <input type="email" name="email" placeholder="Email" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
+            </div>
+            <div>
+                <input type="password" name="password" placeholder="Password" class="w-full p-2 rounded border border-gray-700 bg-gray-800 text-white" required>
+            </div>
+            <button type="submit" class="w-full py-2 bg-red-500 text-white rounded hover:bg-red-600">Sign Up</button>
+        </form>
+        <p class="text-center text-gray-400 mt-4">Already have an account? <a href="?page=login" class="text-red-500 hover:underline">Login</a></p>
     </div>
+</div>
 
-    <?php include __DIR__ . '/footer.php'; ?>
-</body>
-</html>
+<?php include __DIR__ . '/footer.php'; ?>

@@ -1,20 +1,11 @@
 <?php
-// Debug session state
-error_log("Header - Session status: " . session_status());
-error_log("Header - Session data: " . json_encode($_SESSION));
-
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Debug session after potential start
-error_log("Header - After session start - Status: " . session_status());
-error_log("Header - After session start - Data: " . json_encode($_SESSION));
-
 // Check if user is logged in
 $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
-error_log("Header - Is logged in: " . ($isLoggedIn ? "Yes" : "No"));
 
 // Include initialization file
 require_once __DIR__ . '/init.php';

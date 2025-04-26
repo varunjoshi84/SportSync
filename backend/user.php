@@ -1,12 +1,5 @@
 <?php
-/**
- * User Management Functions
- * 
- * This file contains functions for managing user accounts including:
- * - User registration
- * - User retrieval
- * - Profile management
- */
+
 
 if (!function_exists('getUserById')) {
     function getUserById($id) {
@@ -46,7 +39,6 @@ if (!function_exists('registerUser')) {
             executeQuery($sql, $params);
             return true;
         } catch (Exception $e) {
-            error_log("Registration error: " . $e->getMessage());
             return false;
         }
     }
@@ -80,7 +72,6 @@ if (!function_exists('updateUserPreferences')) {
             $result = executeQuery($sql, $params);
             return $result !== false;
         } catch (Exception $e) {
-            error_log("Error updating user preferences: " . $e->getMessage());
             return false;
         }
     }
@@ -99,7 +90,6 @@ if (!function_exists('updateUserPassword')) {
             $result = executeQuery($sql, $params);
             return $result !== false;
         } catch (Exception $e) {
-            error_log("Error updating user password: " . $e->getMessage());
             return false;
         }
     }
@@ -108,7 +98,6 @@ if (!function_exists('updateUserPassword')) {
 if (!function_exists('deleteUser')) {
     function deleteUser($user_id, $password) {
         try {
-            error_log("deleteUser: Starting account deletion for user ID: " . $user_id);
             $db = getDB();
             
             // First verify the user's password
@@ -118,7 +107,6 @@ if (!function_exists('deleteUser')) {
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$result) {
-                error_log("deleteUser: User not found with ID: " . $user_id);
                 return false; // User not found
             }
             
@@ -126,27 +114,18 @@ if (!function_exists('deleteUser')) {
             
             // Verify the provided password matches the stored hash
             $password_verified = password_verify($password, $stored_hash);
-            error_log("deleteUser: Password verification result: " . ($password_verified ? "success" : "failed"));
             
             if (!$password_verified) {
                 return false; // Password verification failed
             }
             
             // Delete user account - using direct PDO execution for DELETE operations
-            error_log("deleteUser: Attempting to delete user from database");
             $sql = "DELETE FROM users WHERE id = :user_id";
             $stmt = $db->prepare($sql);
             $success = $stmt->execute([':user_id' => $user_id]);
             
-            error_log("deleteUser: Delete operation result: " . ($success ? "success" : "failed"));
-            
-            if ($success) {
-                error_log("deleteUser: User deleted successfully, rows affected: " . $stmt->rowCount());
-            }
-            
             return $success;
         } catch (Exception $e) {
-            error_log("Error deleting user: " . $e->getMessage());
             return false;
         }
     }

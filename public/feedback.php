@@ -3,11 +3,6 @@ session_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/email.php';
 require_once __DIR__ . '/../backend/feedback.php';
-
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 $name = '';
 $email = '';
 $subject = '';
@@ -21,8 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $subject = trim($_POST['subject'] ?? '');
     $message = trim($_POST['message'] ?? '');
-    
-    error_log("Feedback form submitted - Name: $name, Email: $email, Subject: $subject");
     
     // Validate inputs
     if (empty($name)) {
@@ -57,11 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit();
             } else {
                 $errors[] = $result['message'] ?? "Failed to save your feedback. Please try again.";
-                error_log("Feedback processing failed: " . ($result['message'] ?? 'Unknown error'));
             }
         } catch (Exception $e) {
-            error_log("General error in feedback processing: " . $e->getMessage());
-            error_log("Error trace: " . $e->getTraceAsString());
             $errors[] = "An error occurred while processing your feedback. Please try again later.";
         }
     }

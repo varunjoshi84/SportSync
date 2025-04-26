@@ -1,50 +1,27 @@
 <?php
-/**
- * Database Management File
- * 
- * This file contains all database-related functions for the SportSync application
- * including connection handling, table creation, and query execution.
- * 
- */
-
 if (!function_exists('checkDatabaseStructure')) {
-    /**
-     * Checks the database structure to ensure tables exist and have correct schema
-     * 
-     * @param PDO $db Optional database connection
-     * @return boolean True if structure is valid, false otherwise
-     */
+    
     function checkDatabaseStructure($db = null) {
         try {
-            // If db connection not provided, get it
             if ($db === null) {
                 $db = getDB();
             }
             
-            // Check if users table exists and its structure
             $result = $db->query("DESCRIBE users");
             $columns = $result->fetchAll(PDO::FETCH_ASSOC);
-            error_log("Users table structure: " . json_encode($columns));
             
-            // Check if there are any users
             $result = $db->query("SELECT COUNT(*) as count FROM users");
             $count = $result->fetch(PDO::FETCH_ASSOC)['count'];
-            error_log("Number of users in database: " . $count);
             
             return true;
         } catch (Exception $e) {
-            error_log("Database structure check failed: " . $e->getMessage());
             return false;
         }
     }
 }
 
 if (!function_exists('testDatabaseConnection')) {
-    /**
-     * Tests the database connection with various connection methods
-     * 
-     * @return boolean True if connection successful, false otherwise
-     */
+  
     function testDatabaseConnection() {
         try {
             $host = 'localhost';
@@ -52,7 +29,6 @@ if (!function_exists('testDatabaseConnection')) {
             $username = 'root';
             $password = '';
             
-            // Try different connection methods
             $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8";
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -63,7 +39,6 @@ if (!function_exists('testDatabaseConnection')) {
             try {
                 $db = new PDO($dsn, $username, $password, $options);
             } catch (PDOException $e) {
-                // If direct connection fails, try with socket
                 $socket = '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock';
                 $dsn = "mysql:unix_socket=$socket;dbname=$dbname;charset=utf8";
                 $db = new PDO($dsn, $username, $password, $options);
@@ -71,22 +46,15 @@ if (!function_exists('testDatabaseConnection')) {
             
             $result = $db->query("SHOW TABLES");
             $tables = $result->fetchAll(PDO::FETCH_COLUMN);
-            error_log("Connected to database. Tables found: " . implode(", ", $tables));
             return true;
         } catch (Exception $e) {
-            error_log("Database test failed: " . $e->getMessage());
             return false;
         }
     }
 }
 
 if (!function_exists('getDB')) {
-    /**
-     * Creates and returns a database connection
-     * 
-     * @return PDO Database connection object
-     * @throws Exception If connection fails
-     */
+  
     function getDB() {
         $host = 'localhost';
         $dbname = 'sport_sync';
@@ -94,7 +62,6 @@ if (!function_exists('getDB')) {
         $password = '';
         
         try {
-            // Try different connection methods
             $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8";
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -105,74 +72,49 @@ if (!function_exists('getDB')) {
             try {
                 $db = new PDO($dsn, $username, $password, $options);
             } catch (PDOException $e) {
-                // If direct connection fails, try with socket
                 $socket = '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock';
                 $dsn = "mysql:unix_socket=$socket;dbname=$dbname;charset=utf8";
                 $db = new PDO($dsn, $username, $password, $options);
             }
             
-            // Test the connection
             $db->query("SELECT 1");
-            
-            // Don't call initializeTables here to avoid circular dependency
-            // Tables will be initialized separately
             
             return $db;
         } catch (PDOException $e) {
-            error_log("Database connection error: " . $e->getMessage());
-            throw new Exception("Database connection failed: " . $e->getMessage());
+            return null;
         }
     }
 }
 
 if (!function_exists('executeQuery')) {
-    /**
-     * Executes a SQL query with optional parameters
-     * 
-     * @param string $sql SQL query to execute
-     * @param array $params Array of parameters for the prepared statement
-     * @return array Result set as associative array
-     * @throws Exception If query execution fails
-     */
+ 
     function executeQuery($sql, $params = []) {
         try {
-            error_log("Executing SQL: " . $sql);
-            error_log("With params: " . json_encode($params));
-            
             $db = getDB();
             if (!$db) {
-                error_log("Database connection failed in executeQuery");
-                throw new Exception("Database connection failed");
+                return [];
             }
             
             $stmt = $db->prepare($sql);
             if (!$stmt) {
-                error_log("Failed to prepare statement: " . json_encode($db->errorInfo()));
-                throw new Exception("Failed to prepare statement");
+                return [];
             }
             
             $result = $stmt->execute($params);
             if (!$result) {
-                error_log("Failed to execute statement: " . json_encode($stmt->errorInfo()));
-                throw new Exception("Failed to execute statement");
+                return [];
             }
             
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("Query executed successfully. Found " . count($data) . " rows");
             return $data;
         } catch (Exception $e) {
-            error_log("Error in executeQuery: " . $e->getMessage());
-            throw $e;
+            return [];
         }
     }
 }
 
 if (!function_exists('createNewsTable')) {
-    /**
-     * Creates the news table if it doesn't exist
-     * 
-     * @return array Result of query execution
-     */
+  
     function createNewsTable() {
         $sql = "CREATE TABLE IF NOT EXISTS news (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -186,11 +128,7 @@ if (!function_exists('createNewsTable')) {
 }
 
 if (!function_exists('createMatchTable')) {
-    /**
-     * Creates the matches table if it doesn't exist
-     * 
-     * @return array Result of query execution
-     */
+ 
     function createMatchTable() {
         $sql = "CREATE TABLE IF NOT EXISTS matches (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -210,12 +148,7 @@ if (!function_exists('createMatchTable')) {
 }
 
 if (!function_exists('createUsersTable')) {
-    /**
-     * Creates the users table if it doesn't exist
-     * 
-     * @return boolean True if table created or exists
-     * @throws Exception If creation fails
-     */
+ 
     function createUsersTable() {
         try {
             $sql = "CREATE TABLE IF NOT EXISTS users (
@@ -227,21 +160,15 @@ if (!function_exists('createUsersTable')) {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )";
             executeQuery($sql);
-            error_log("Users table created or already exists");
             return true;
         } catch (Exception $e) {
-            error_log("Error creating users table: " . $e->getMessage());
-            throw $e;
+            return false;
         }
     }
 }
 
 if (!function_exists('createFavoritesTable')) {
-    /**
-     * Creates the favorites table if it doesn't exist
-     * 
-     * @return array Result of query execution
-     */
+   
     function createFavoritesTable() {
         $sql = "CREATE TABLE IF NOT EXISTS favorites (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -256,11 +183,7 @@ if (!function_exists('createFavoritesTable')) {
 }
 
 if (!function_exists('createFeedbackTable')) {
-    /**
-     * Creates the feedback table if it doesn't exist
-     * 
-     * @return array Result of query execution
-     */
+   
     function createFeedbackTable() {
         $sql = "CREATE TABLE IF NOT EXISTS feedback (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -276,11 +199,7 @@ if (!function_exists('createFeedbackTable')) {
 }
 
 if (!function_exists('createSubscriptionsTable')) {
-    /**
-     * Creates the subscriptions table if it doesn't exist
-     * 
-     * @return array Result of query execution
-     */
+  
     function createSubscriptionsTable() {
         $sql = "CREATE TABLE IF NOT EXISTS subscriptions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -292,11 +211,7 @@ if (!function_exists('createSubscriptionsTable')) {
 }
 
 if (!function_exists('addWinnerColumnToMatchesTable')) {
-    /**
-     * Adds the winner column to the matches table if it doesn't exist
-     * 
-     * @return boolean True if column added or already exists, false otherwise
-     */
+  
     function addWinnerColumnToMatchesTable() {
         try {
             $db = getDB();
@@ -321,36 +236,19 @@ if (!function_exists('addWinnerColumnToMatchesTable')) {
                             END
                         WHERE status = 'completed'";
                 $db->exec($sql);
-                
-                error_log("Winner column added to matches table and existing records updated");
-            } else {
-                error_log("Winner column already exists in matches table");
             }
             
             return true;
         } catch (Exception $e) {
-            error_log("Error adding winner column: " . $e->getMessage());
             return false;
         }
     }
 }
 
 if (!function_exists('initializeTables')) {
-    /**
-     * Initializes all database tables
-     * 
-     * @param PDO $db Optional database connection
-     * @return boolean True if all tables initialized successfully
-     * @throws Exception If initialization fails
-     */
+   
     function initializeTables($db = null) {
         try {
-            // Test database connection first
-            if (!testDatabaseConnection()) {
-                throw new Exception("Database connection test failed");
-            }
-            
-            // If db connection not provided, get it
             if ($db === null) {
                 $db = getDB();
             }
@@ -362,17 +260,13 @@ if (!function_exists('initializeTables')) {
             createFeedbackTable();
             createSubscriptionsTable();
             
-            // Add winner column to matches table if it doesn't exist
             addWinnerColumnToMatchesTable();
             
-            // Check database structure
             checkDatabaseStructure($db);
             
-            error_log("All tables initialized successfully");
             return true;
         } catch (Exception $e) {
-            error_log("Error initializing tables: " . $e->getMessage());
-            throw $e;
+            return false;
         }
     }
 }

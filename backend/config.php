@@ -1,10 +1,4 @@
 <?php
-/**
- * Database Configuration File
- * 
- * This file contains database connection parameters and establishes
- * a PDO connection to the MySQL database for the SportSync application.
- */
 
 // Database connection parameters
 $host = 'localhost';
@@ -22,5 +16,4 @@ try {
     // Terminate script if connection fails
     die("Connection failed: " . $e->getMessage());
 }
-// echo "configuration sucessfully";
 ?>

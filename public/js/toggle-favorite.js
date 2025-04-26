@@ -1,10 +1,4 @@
-/**
- * Function to toggle a match's favorite status
- * 
- * @param {number} matchId - The ID of the match to toggle
- * @param {boolean} isFavorite - Whether the match is currently a favorite
- * @param {number} userId - The ID of the current user
- */
+
 function toggleFavorite(matchId, isFavorite, userId) {
     // Validate required parameters
     if (!matchId || !userId) {
