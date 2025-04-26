@@ -199,11 +199,8 @@ php tests/test.php
 php tests/test_db.php
 ```
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Contact
 
-Varun Joshi - varunjoshi84@gmail.com
+Varun Joshi - varunpndey@outlook.com
 Project Link: https://github.com/varunjoshi84/SportSync
