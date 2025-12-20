@@ -198,9 +198,9 @@ The project includes test files in the `tests` directory. To run tests:
 php tests/test.php
 php tests/test_db.php
 ```
+👥 Group Members
+Varun Joshi
+Satyajit Rout
+Abhay Lal
 
-
-## Contact
-
-Varun Joshi - varunpndey@outlook.com
 Project Link: https://github.com/varunjoshi84/SportSync
