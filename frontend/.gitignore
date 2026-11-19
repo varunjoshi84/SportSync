@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vite cache
+.vite/
+
+# OS
+.DS_Store
