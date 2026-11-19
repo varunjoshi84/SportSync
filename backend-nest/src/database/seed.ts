@@ -11,6 +11,8 @@ import { Subscription } from './entities/subscription.entity';
 
 dotenv.config();
 
+const isSsl = process.env.DB_SSL === 'true' || process.env.DB_HOST?.includes('supabase.co');
+
 const dataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -19,6 +21,7 @@ const dataSource = new DataSource({
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'sport_sync',
   entities: [User, Match, Player, Favorite, News, Feedback, Subscription],
+  ssl: isSsl ? { rejectUnauthorized: false } : false,
   synchronize: true,
 });
 

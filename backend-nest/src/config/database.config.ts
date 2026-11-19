@@ -7,22 +7,27 @@ import { News } from '../database/entities/news.entity';
 import { Feedback } from '../database/entities/feedback.entity';
 import { Subscription } from '../database/entities/subscription.entity';
 
-export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 5432,
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_DATABASE || 'sport_sync',
-  entities: [
-    User,
-    Match,
-    Player,
-    Favorite,
-    News,
-    Feedback,
-    Subscription,
-  ],
-  synchronize: true, // Auto create/update schema in development
-  logging: false,
-});
+export const getDatabaseConfig = (): TypeOrmModuleOptions => {
+  const isSsl = process.env.DB_SSL === 'true' || process.env.DB_HOST?.includes('supabase.co');
+
+  return {
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    username: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_DATABASE || 'sport_sync',
+    entities: [
+      User,
+      Match,
+      Player,
+      Favorite,
+      News,
+      Feedback,
+      Subscription,
+    ],
+    ssl: isSsl ? { rejectUnauthorized: false } : false,
+    synchronize: true, // Auto create/update schema in development
+    logging: false,
+  };
+};
