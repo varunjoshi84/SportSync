@@ -448,8 +448,3 @@ npm run start:prod
 
 ---
 
-<div align="center">
-
-Made with ❤️ for Sports Lovers • **SportSync Ecosystem**
-
-</div>
