@@ -17,7 +17,8 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const fetchMe = async () => {
-      if (token) {
+      const storedToken = localStorage.getItem('sportsync_token');
+      if (storedToken) {
         try {
           const res = await api.get('/auth/me');
           if (res.data?.user) {
@@ -25,7 +26,10 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('sportsync_user', JSON.stringify(res.data.user));
           }
         } catch (error) {
-          logout();
+          // If 401/403 or network error, clear invalid session
+          if (error.response?.status === 401 || error.response?.status === 403) {
+            logout();
+          }
         }
       }
       setLoading(false);
@@ -37,10 +41,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
     if (res.data?.access_token) {
-      setToken(res.data.access_token);
-      setUser(res.data.user);
-      localStorage.setItem('sportsync_token', res.data.access_token);
-      localStorage.setItem('sportsync_user', JSON.stringify(res.data.user));
+      const accessToken = res.data.access_token;
+      const userData = res.data.user;
+      localStorage.setItem('sportsync_token', accessToken);
+      localStorage.setItem('sportsync_user', JSON.stringify(userData));
+      setToken(accessToken);
+      setUser(userData);
+      setLoading(false);
       return res.data;
     }
     throw new Error(res.data?.message || 'Login failed');

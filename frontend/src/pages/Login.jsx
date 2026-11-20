@@ -28,7 +28,9 @@ export const Login = () => {
     setError(null);
     try {
       await login(email, password);
-      const from = location.state?.from?.pathname || '/';
+      const from = (location.state?.from?.pathname && location.state.from.pathname !== '/login')
+        ? location.state.from.pathname
+        : '/dashboard';
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Invalid email or password');
